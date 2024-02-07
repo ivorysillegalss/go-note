@@ -84,7 +84,7 @@ user:password@/dbname
 
 ### missing port in address
 
-![image-20240116230721091](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20240116230721091.png)
+![image-20240116230721091](./image/image-20240116230721091.png)
 
 `gin.Default.Run()`内端口或网址有没写对
 
@@ -101,7 +101,7 @@ err := r.Run(":8080")
 
 ### missing go.sum entry for module providing package  < package name >
 
-![de9e3366bcae96075eee157fbc8df2a](C:\Users\chenz\Documents\WeChat Files\chenzhengchengLeos\FileStorage\Temp\de9e3366bcae96075eee157fbc8df2a.png)
+![image-20240116230721091](./image/image-20240116230721091.png)
 
 go.mod 中文件依赖的配置问题
 
