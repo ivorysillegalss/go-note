@@ -4,7 +4,7 @@
 
 
 
-## experience
+### init
 
 最简单的例子
 
@@ -80,7 +80,7 @@ user:password@/dbname
 
 
 
-## error
+
 
 ### missing port in address
 
@@ -115,6 +115,12 @@ go.mod 中文件依赖的配置问题
 
 
 
+
+
+
+
+### git push等操作失败
+
 `unable to access 'https://github.com/ivorysillegalss/mini-gpt.git/': Failed to connect to github.com port 443 after 21063 ms: Couldn't connect to server`
 
 修改git配置：（其中的10809改为你电脑的端口号）
@@ -132,7 +138,7 @@ clash默认修改的端口号为7890
 
 
 
-go项目启动失败
+### go项目启动失败 (权限)
 
 nohup: failed to run command '/home/go/main': Permission denied nohup: failed to run command '/home/go/main': Permission denied nohup: failed to run command '/home/go/main': Permission denied load config from file failed, 
 
@@ -146,7 +152,9 @@ chmod +x /home/go/main
 
 
 
-err:open ./conf/config.ini: no such file or directory panic: 
+
+
+### err:open ./conf/config.ini: no such file or directory panic: 
 
 找不到配置文件
 
@@ -154,7 +162,7 @@ err:open ./conf/config.ini: no such file or directory panic:
 
 
 
-运行时错误 数据库错误 redis错误 有可能是没读到配置文件 导致数据库初始化失败
+### 运行时错误 数据库错误 redis错误 有可能是没读到配置文件 导致数据库初始化失败
 
 runtime error: invalid memory address or nil pointer dereference [signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x84e120] goroutine 1 [running]: mini-gpt/setting.initLog() D:/GoLand/GoProject/mini-gpt/setting/initialzation.go:41 +0x140 mini-gpt/setting.GetLogger(...) 
 
@@ -166,7 +174,7 @@ D:/GoLand/GoProject/mini-gpt/setting/initialzation.go:62 main.main() D:/GoLand/G
 
 
 
-回显主键
+### 回显主键
 
 ```go
 
@@ -202,7 +210,7 @@ botToStruct中主键改成默认的主键名字ID就可以了
 
 
 
-
+### BindJSON和指针传递
 
 
 正确
@@ -240,10 +248,100 @@ BindJSON方法 相当于springboot的自动映射 将前端传过来的JSON数�
 
 
 
+
+
+### Windows上编译linux的go可执行文件
+
 ```go
 PS D:\GoLand\GoProject\mini-gpt> $env:GOOS="linux"
 PS D:\GoLand\GoProject\mini-gpt> $env:GOARCH="amd64"
 PS D:\GoLand\GoProject\mini-gpt> go build main.go  
 ```
 
-Windows上编译linux文件
+
+
+
+
+### 结构体嵌套 与 匿名结构体 映射等
+
+先看代码及错误JSON
+
+```go
+type UpdateBotDTO struct {
+    *models.Bot
+}
+
+type Bot struct {
+	*BotInfo
+	*BotConfig
+	BotId int `gorm:"primaryKey"`
+	//是否已经删除
+	IsDelete bool
+	//是否官方bot
+	IsOfficial bool
+}
+
+type BotInfo struct {
+	BotId       int    `json:"bot_id"`
+	Name        string `json:"bot_name"`
+	Avatar      string `json:"bot_avatar"`
+	Description string `json:"bot_description"`
+}
+
+type BotConfig struct {
+	BotId      int    `json:"bot_id"`
+	InitPrompt string `json:"init_prompt"`
+	Model      string `json:"model"`
+}
+```
+原本是无脑按照嵌套嵌进JSON中的 但是这样子一直都是传的nil 及dto没有映射到真实值 错误json如下
+
+```json
+{
+	"bot":{
+            "bot_info": {
+            "bot_name": "translate",
+            "bot_avatar": "default",
+            "bot_description": "a test"
+        },
+        "bot_config": {
+            "init_prompt": "say lvoe plz",
+            "model": "gpt-3.5-turbo-instruct"
+        },
+      "is_delete":false,
+      "is_official":false,
+      "bot_id":1
+	}
+}
+```
+
+但是go结构体中匿名嵌套结构体的特性有点类似于继承  如上 `updateBotDTO`结构体中只有一个 `Bot`的匿名字段 代表着在外部看来 这两个类是完全一样的 并且**没有嵌套关系** 
+换句话说 完全可以使用 调用Bot方式字段中的方式来调用 updateBotDTO 中 
+就如
+```go
+if updatedBot.IsOfficial {
+		beforeBot, err := models.GetOfficialBot(updatedBot.BotId)
+```
+同时 也可以在 `updateBotDTO` 中把匿名对象搞出来 单独处理
+```go
+	bot := updatedBot.Bot
+	isOfficial := bot.IsOfficial
+```
+两者效果是一样的
+一句话总结就是 使用的时候 可以按照原本的嵌套关系进行调用 也可以直接调用匿名嵌套结构体中的字段
+
+但是 **绑定字段 Bind前端JSON** 的时候只能后者 不可以进行显式嵌套 要么就在匿名对象后方加一个 `json:"bot"`等 但是这样使用匿名就没啥意义了 综上所述 正确的JSON调用只能是下方
+
+```json
+{
+	"bot_name": "translate",
+	"bot_avatar": "default",
+	"bot_description": "a test",
+	"init_prompt": "say lvoe plz",
+	"model": "gpt-3.5-turbo-instruct",
+	"is_delete": false,
+	"is_official": false,
+	"bot_id": 0
+}
+```
+
