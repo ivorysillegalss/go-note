@@ -345,3 +345,41 @@ if updatedBot.IsOfficial {
 }
 ```
 
+
+
+
+
+### 反射与嵌套匿名结构体
+
+```go
+//这里的反射代码其实可以用第三方structs类进行简化
+//通过反射部分更新目标结构体
+updateValue := reflect.ValueOf(bot).Elem()
+//这个updateValue是需要部分更新的数据的元数据集 自己理解
+dataValue := reflect.ValueOf(&beforeBot).Elem()
+//Elem方法是获取到结构体字段或数组切片等数据结构底层字段值的方法
+//于是这里先通过结构体的指针获取 其中指向的字段的值
+```
+
+```go
+for i := 0; i < updateValue.NumField(); i++ {
+    field := updateValue.Type().Field(i)
+
+    fmt.Println(field)
+    //类似java中的Field类型对象
+    updateFieldValue := updateValue.Field(i)
+    if updateFieldValue.IsZero() {
+       continue
+    }
+    //如果是零值则跳过 不更新
+    dataFieldValue := dataValue.FieldByName(field.Name)
+    //通过属性的key获取返回的值
+    if dataFieldValue.IsValid() && dataFieldValue.CanSet() {
+       dataFieldValue.Set(updateFieldValue)
+    }
+}
+```
+
+数据结构同上一bug
+
+此段代码是 **利用反射达成部分更新** 但是一直报 `err:interface *reflect.ValueError` 经检查是因为没有进行是否结构体的判断 只对普通的字段有效
