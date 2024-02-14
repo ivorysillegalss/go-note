@@ -383,3 +383,76 @@ for i := 0; i < updateValue.NumField(); i++ {
 数据结构同上一bug
 
 此段代码是 **利用反射达成部分更新** 但是一直报 `err:interface *reflect.ValueError` 经检查是因为没有进行是否结构体的判断 只对普通的字段有效
+
+
+
+### int等类型 & float64 json映射
+
+当将json中的数据手动映射到map中 所有的整数或浮点数都会被识别成float64类型 需转换成float64之后再根据需求转回对应类型
+
+```java
+// 对于整数
+if id, ok := data["id"].(float64); ok {
+    intId := int(id)
+    // 使用intId
+}
+```
+
+
+
+### Type和Kind的区别
+
+前者是得到变量的类型 可以获取指定的自定义结构体的类型
+
+后者只能获得底层的基础类型 若是结构体则是`reflect.Struct` 指针则是`reflect.ptr`
+
+`reflect.Type` 是类型的描述符，可以用于检查变量的类型。它是通过调用 `reflect.TypeOf()` 函数来获得的。`reflect.Kind` 是一个枚举类型，表示类型的底层基础类别，用于描述类型的分类，例如 `int`、`string`、`bool` 等。您可以通过 `reflect.ValueOf().Kind()` 方法来获取变量的底层类型。
+
+`reflect.Type` 主要用于检查变量的类型，而 `reflect.Kind` 主要用于检查变量的底层基础类别。例如，`reflect.Type` 可以用于检查变量是否为 `int` 类型，而 `reflect.Kind` 可以用于检查变量是否为 `reflect.Int` 类型。
+
+```go
+package main
+
+import (
+    "fmt"
+    "reflect"
+)
+
+func main() {
+    var x int = 10
+    var y string = "Hello"
+
+    // 获取 x 的类型
+    typeOfX := reflect.TypeOf(x)
+
+    // 获取 x 的底层类型
+    kindOfX := reflect.ValueOf(x).Kind()
+
+    // 检查 x 的类型是否为 int
+    if typeOfX == reflect.TypeOf(int(0)) {
+        fmt.Println("x is of type int")
+    }
+
+    // 检查 x 的底层类型是否为 int
+    if kindOfX == reflect.Int {
+        fmt.Println("x is of kind int")
+    }
+
+    // 获取 y 的类型
+    typeOfY := reflect.TypeOf(y)
+
+    // 获取 y 的底层类型
+    kindOfY := reflect.ValueOf(y).Kind()
+
+    // 检查 y 的类型是否为 string
+    if typeOfY == reflect.TypeOf("") {
+        fmt.Println("y is of type string")
+    }
+
+    // 检查 y 的底层类型是否为 string
+    if kindOfY == reflect.String {
+        fmt.Println("y is of kind string")
+    }
+}
+```
+
