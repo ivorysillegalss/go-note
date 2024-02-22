@@ -177,3 +177,34 @@ docker run -d \
 一般此处的镜像名称结构是 `Repository:TAG` 镜像名+版本号
 
 若像此处没有写上版本号 就默认是安装最新版本镜像的容器
+
+
+
+
+
+
+
+## docker操作镜像常见命令
+
+![image-20240222133348658](.\images\image-20240222133348658.png)
+
+- docker pull 将镜像从远端拉取到本地
+- docker push 与拉取对应的 将镜像从本地推送到远端
+
+> 远端指的是dockerHub
+
+- docker images 查看所有的镜像
+- docker ps 查看所有的容器及其状态
+- docker build 构建自己的镜像 通过Dockerfile
+- docker save 保存镜像为本地文件 
+- docker load 加载本地镜像
+
+- docker rmi 移除镜像
+
+- docker run 运行镜像 创建容器 如果本地找不到对应的镜像文件 会到远端去找
+- docker logs 查看docker日志
+- docker exec 运行docker容器
+- docker stop 停止(暂停)运行中的镜像
+- docker start 重新运行构建容器
+
+> docker支持类似断点续传的功能 当构建容器的过程中意外暂停了传输 可以通过`docker start`重新运行起这个过程 并可以通过`docker ps`来查看容器的安装状态
