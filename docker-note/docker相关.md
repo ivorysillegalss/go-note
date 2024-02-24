@@ -208,3 +208,21 @@ docker run -d \
 - docker start 重新运行构建容器
 
 > docker支持类似断点续传的功能 当构建容器的过程中意外暂停了传输 可以通过`docker start`重新运行起这个过程 并可以通过`docker ps`来查看容器的安装状态
+
+补充：
+
+```bash
+docker ps --format "table {{ID}\t{{.Image}r\t{{.Ports}}\t{{.Status}]\t{{.Names}}"
+```
+
+在查看容器状态的时候 自定义容器的格式
+
+
+
+
+
+
+
+## 数据卷相关
+
+docker容器具有多个特点，是一个在最大程度上最小化依赖和相关组件的单位。这一特点使docker更加的轻量化，提高操作的效率。但同时也带来了某些不便，
