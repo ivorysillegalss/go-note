@@ -249,13 +249,13 @@ bash: vi: command not found
 
 了解概念之后，学习如何操作数据卷
 
-- docker volume create 创建数据卷
-- docker volume ls 查看所有数据卷
-- docker volume rm 删除指定数据卷
-- docker volume inspect 查看某个数据卷
-- docker volume prune 清除数据卷
-
-
+| 指令                  | 作用           |
+| --------------------- | -------------- |
+| docker volume create  | 创建数据卷     |
+| docker volume ls      | 查看所有数据卷 |
+| docker volume rm      | 删除指定数据卷 |
+| docker volume inspect | 查看某个数据卷 |
+| docker volume prune   | 清除数据卷     |
 
 以下以nginx创建容器时手动挂载为例
 
@@ -355,3 +355,172 @@ docker会将不同层次的文件分为多个部分 他们就叫做**层(Layers)
 可以理解成是一个媒介，通过写在Dockerfile中的每一条指令，来描述并告诉docker，说明构建镜像时所要进行的操作。
 
 常见指令如下：
+
+| 指令名字   | 指令作用                                    |
+| ---------- | ------------------------------------------- |
+| FROM       | 基础镜像                                    |
+| ENV        | 设定环境变量                                |
+| RUN        | 运行cmd命令                                 |
+| COPY       | 拷贝文件 可以是拷贝jar包 可以是拷贝其他组件 |
+| ENTRYPOINT | 设定程序入口                                |
+| WORKDIR    | 指定工作目录                                |
+
+例子
+
+```dockerfile
+#基础镜像
+FROM openjdk:11.0-jre-buster I
+#设定环境变量（时区）
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/STZ /etc/localtime &echo $TZ /etc/timezone
+#指定工作目录为app包
+WORKDIR /app
+#拷贝jar包
+COPY docker-demo.jar /app.jar
+#入口
+ENTRYPOINT ["java","-jar","/app.jar"]
+```
+
+ps：还有很多docker相关的命令在官网当中，见https://docs.docker.com/build/building/packaging/
+
+
+
+在确定好DockerFile后 就可以在控制台根据此文件创建镜像了
+
+```bash
+docker build -t demo-jar:1.0 .
+# 即
+docker build -t repositories:tags path
+```
+
+`-t `指定镜像的名字和版本号，如果不写版本号则默认最新latest
+
+`.` 指定Dockerfile和jar包的相对路径   `.`则代表两者同级
+
+
+
+构建完成之后，就可以使用`docker images`查看构建好的镜像
+
+
+
+
+
+## 容器网络互连
+
+默认情况下，docker启动的时候会申请分配一个网段，之后在docker中启动的容器中，若有需要用到网络相关。会在docker的网段中分配一个ip地址，但是若对应容器关闭或启动顺序改变，其所被分配的ip地址可能会改变。为了解决这个问题，可以通过docker自带的命令进行手动配置。
+
+| 命令                      | 说明             |
+| ------------------------- | ---------------- |
+| docker network create     | 创建一个网络     |
+| docker network ls         | 查看所有网络     |
+| docker network rm         | 删除指定网络     |
+| docker network prune      | 清除未使用的网络 |
+| docker network connect    | 使容器连接某网络 |
+| docker network disconnect | 使容器断连某网络 |
+| docker network inspect    | 查看详细信息     |
+
+1. 创建网桥并查看其状态
+
+```bash
+[root@localhost ~]# docker network create demo
+ea9ea5bb9488c62a01059e862791817db1108e1fecf43b911f4801f8c6942a20
+
+[root@localhost ~]# docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+73a42a826849   bridge    bridge    local
+ea9ea5bb9488   demo      bridge    local
+ec3ae5e04b95   host      host      local
+5dc302b468a6   none      null      local
+```
+
+创建完毕后可以通过`ip addr`查看修改
+
+> [root@localhost ~]# ip addr
+> 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+>     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+>     inet 127.0.0.1/8 scope host lo
+>        valid_lft forever preferred_lft forever
+>     inet6 ::1/128 scope host
+>        valid_lft forever preferred_lft forever
+> 2: ens33: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+>     link/ether 00:0c:29:46:e0:92 brd ff:ff:ff:ff:ff:ff
+>     inet 192.168.138.129/24 brd 192.168.138.255 scope global noprefixroute dynamic ens33
+>        valid_lft 1566sec preferred_lft 1566sec
+>     inet 192.168.138.128/24 brd 192.168.138.255 scope global secondary noprefixroute ens33
+>        valid_lft forever preferred_lft forever
+>     inet6 fe80::8b28:3594:bbe0:f565/64 scope link noprefixroute
+>        valid_lft forever preferred_lft forever
+> 3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
+>     link/ether 02:42:f2:3c:ad:1e brd ff:ff:ff:ff:ff:ff
+>     inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+>        valid_lft forever preferred_lft forever
+> 4: **br-ea9ea5bb9488:** <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
+>     link/ether 02:42:64:27:4d:c3 brd ff:ff:ff:ff:ff:ff
+>     inet 172.18.0.1/16 brd 172.18.255.255 scope global br-ea9ea5bb9488
+>        valid_lft forever preferred_lft forever
+
+2. 可以发现第四个就是刚刚所创建的网桥，我们可以人为的让容器加入这个网段当中
+
+```bash
+[root@localhost ~]# docker network connect demo nginx
+```
+
+连接之后，可以通过`docker inspect + 容器`查看其状态
+
+```bash
+[root@localhost ~]# docker inspect nginx
+```
+
+在冒出来的参数最后一部分里面有容器的网络状态
+
+> "Networks": {
+>                 "bridge": {
+>                     "IPAMConfig": null,
+>                     "Links": null,
+>                     "Aliases": null,
+>                     "MacAddress": "02:42:ac:11:00:02",
+>                     "NetworkID": "a2e419eeef6a4ffcaff19b2bbdf9abf1fb04057c73b6adff655a42c5a280e7c3",
+>                     "EndpointID": "885515cd78013114e7a3010f6f6f406333ebb1bb852e11ff305441f4295cfa38",
+>                     "Gateway": "172.17.0.1",
+>                     "IPAddress": "172.17.0.2",
+>                     "IPPrefixLen": 16,
+>                     "IPv6Gateway": "",
+>                     "GlobalIPv6Address": "",
+>                     "GlobalIPv6PrefixLen": 0,
+>                     "DriverOpts": null,
+>                     "DNSNames": null
+>                 },
+>                 "**demo**": {
+>                     "IPAMConfig": {},
+>                     "Links": null,
+>                     "Aliases": [
+>                         "c25c429f3e8e"
+>                     ],
+>                     "MacAddress": "",
+>                     "NetworkID": "",
+>                     "EndpointID": "",
+>                     "Gateway": "",
+>                     "IPAddress": "",
+>                     "IPPrefixLen": 0,
+>                     "IPv6Gateway": "",
+>                     "GlobalIPv6Address": "",
+>                     "GlobalIPv6PrefixLen": 0,
+>                     "DriverOpts": {},
+>                     "DNSNames": [
+>                         "nginx",
+>                         "c25c429f3e8e"
+>                     ]
+>                 }
+
+可以看到第一个`bridge`是默认分配的网卡，第二个是刚刚手动加的，我们也可以使用`docker disconnect`命令来取消与默认网卡的连接。
+
+除了这一种手动分配网卡的方式，我们也可以在创建容器的时候就指定网卡，在这种情况下，容器只与指定的网卡连接，不与系统默认分配的连接。格式为`--network networkName`
+
+```bash
+docker run -d 
+--name mySQL \
+-p 8080:8080 \
+--network demo \   #此处指定
+repositoriyName
+```
+
