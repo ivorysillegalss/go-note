@@ -150,7 +150,7 @@ class Solution {
 
 问总共有多少条不同的路径？
 
-![image-20240206183928225](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20240206183928225.png)
+![image-20240206183928225](.\image\image-20240206183928225.png)
 
 
 
