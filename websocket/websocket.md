@@ -1157,13 +1157,44 @@ switchs.addEventListener('click', function() {
 
 **matchUser**是匹配对手的函数
 
-![image-20231122154144176](C:\Users\HASERE\AppData\Roaming\Typora\typora-user-images\image-20231122154144176.png)
+```javascript
+function connect(userId){
+var socketurl "ws://yourServerUrl:3000/competition/" + userId;
+socket = new Websocket(socketurl);
+//在此触发OnOpen
+//打开事件
+socket.onopen = function(){...};
+//在此触发OnMessage
+//获得消息事件
+socket.onmessage = function(msg){...};
+//在此触发onclose
+//关闭事件
+socket.onclose = function(){...};
+//在此触发OnError
+//发生了错误事件
+socket.onerror = function(){...};
+```
 
 **connect**函数的大概架构如上
 
 **onMessage**为主要逻辑实现 下一部分分析
 
 **matchUser**内容见下一部分
+
+
+
+### 2、OnOpen打开连接及OnError错误处理
+
+```javascript
+socket.onopen = function() {
+    console.log("websocket 已打开 userId: " + userId);
+};
+socket.onerror = function() {
+    console.log("websocket 发生了错误 userId : " + userId);
+}
+```
+
+此处不多赘述错误处理和连接，可在对应函数处记录日志或心跳响应等
 
 
 
