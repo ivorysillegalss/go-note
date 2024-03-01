@@ -4,6 +4,48 @@
 
 
 
+### go-redis
+
+```go
+result, err := conn.Client.Do(conn.Ctx, "get", any1).Result()
+```
+
+```go
+func (c *Client) Do(ctx context.Context, args ...interface{}) *Cmd {
+    cmd := NewCmd(ctx, args...)
+    _ = c.Process(ctx, cmd)
+    return cmd
+}
+```
+
+```go
+type Cmd struct {
+    baseCmd
+
+    val interface{}
+}
+```
+
+这里的val记录的是传过来的值和类型 baseCMD是基础命令
+
+使用Result方法返回接口类型的值  和 baseCMD中错误
+
+
+```go
+type baseCmd struct {
+    ctx    context.Context
+    args   []interface{}
+    err    error
+    keyPos int8
+
+    _readTimeout *time.Duration
+}
+```
+
+
+
+
+
 ### init
 
 最简单的例子
