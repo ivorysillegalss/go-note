@@ -282,6 +282,117 @@ class Solution {
 
 
 
+### [2369. 检查数组是否存在有效划分](https://leetcode.cn/problems/check-if-there-is-a-valid-partition-for-the-array/)
+
+给你一个下标从 **0** 开始的整数数组 `nums` ，你必须将数组划分为一个或多个 **连续** 子数组。
+
+如果获得的这些子数组中每个都能满足下述条件 **之一** ，则可以称其为数组的一种 **有效** 划分：
+
+1. 子数组 **恰** 由 `2` 个相等元素组成，例如，子数组 `[2,2]` 。
+2. 子数组 **恰** 由 `3` 个相等元素组成，例如，子数组 `[4,4,4]` 。
+3. 子数组 **恰** 由 `3` 个连续递增元素组成，并且相邻元素之间的差值为 `1` 。例如，子数组 `[3,4,5]` ，但是子数组 `[1,3,5]` 不符合要求。
+
+如果数组 **至少** 存在一种有效划分，返回 `true` ，否则，返回 `false` 。
+
+**示例 1：**
+
+> 输入：nums = [4,4,4,5,6]
+> 输出：true
+> 解释：数组可以划分成子数组 [4,4] 和 [4,5,6] 。
+> 这是一种有效划分，所以返回 true 。
+
+**示例 2：**
+
+> 输入：nums = [1,1,1,2]
+> 输出：false
+> 解释：该数组不存在有效划分。
+
+
+
+设数组长度为**n**  
+标记前n项数组满足要求或否的布尔数组**f[]**
+
+题目要求计算数组是否划分成合法子数组，按照动态规划的思想，可以将问题转变成**数组的前n项是否可划分成子数组**。讨论这个话题的时候，可以将**符合要求的情况**转化成三种子情况，三种情况满足其一即可：
+
+- `nums[n] == nums[n - 1]` 末2项相等 且 `f[n - 1]`前n-2项 可有效划分
+- `nums[n] == nums[n - 1] == nums[n - 2]` 末三项相等 且 `f[n - 2]`前n-3项可有效划分
+
+- `nums[n] == nums[n - 1] + 1 == nums[n - 2] + 2` 末三项相等 且 `f[n - 2]` 前三项可有效划分
+
+> 关于f[n]:
+>
+> 这里设置f[]的长度为**n + 1** 并且**f[0] = true**
+> 其含义是第n项前的数组可否划分为子数组 eg:
+>
+> - f[0] = true 前0项默认为有效 便于后期dp
+>
+> - f[1] = false 前1项不可划分为有效数组
+>
+> - f[2] = true 前2项可划分成有效数组
+
+代码如下
+
+```java
+class Solution {
+    public boolean validPartition(int[] nums) {
+        int n = nums.length;
+        boolean[] f = new boolean[n + 1];
+        f[0] = true;
+        
+        for(int i = 1;i < n;i ++){
+            // 站在中间 实则是根据第n - 1项 判断第n + 1项此时的状态
+            if(f[i - 1] && nums[i] == nums[i - 1]){
+                f[i + 1] = true;
+                continue;
+            }
+            if(i > 1 && f[i - 2] && 
+               ((nums[i] == nums[i - 1] && nums[i] == nums[i - 2]) 
+             || (nums[i] == nums[i - 1] + 1 && nums[i] == nums[i - 2] + 2))){
+                f[i + 1] = true;
+            }
+        }
+        return f[n];
+    }
+}
+```
+
+相似的，因为题目中最多只需要n-2时的状态，所以还可以在空间上进行优化，使用变量替换`f[]`
+
+```java
+class Solution {
+    public boolean validPartition(int[] nums) {
+        int n = nums.length;
+        boolean a = true;
+        boolean b = false;
+//        直接计算当只有两个值时候的情况
+        boolean c = nums.length > 1 && nums[0] == nums[1];
+        boolean d = false;
+//        从第三项开始计算dp
+        for(int i = 2;i < n;i ++){
+            d = false;
+            // 站在中间 实则是根据第n - 1项 判断第n + 1项此时的状态
+            if(b && nums[i] == nums[i - 1]){
+                d = true;
+//                这里不能continue了 会跳过状态刷新的语句
+            }
+            if(i > 1 && a && ((nums[i] == nums[i - 1] && nums[i] == nums[i - 2]) || (nums[i] == nums[i - 1] + 1 && nums[i] == nums[i - 2] + 2))){
+                d = true;
+            }
+            a = b;
+            b = c;
+            c = d;
+        }
+        return c;
+    }
+}
+```
+
+
+
+
+
+
+
 ### [834. 树中距离之和](https://leetcode.cn/problems/sum-of-distances-in-tree/)
 
 给定一个无向、连通的树。树中有 `n` 个标记为 `0...n-1` 的节点以及 `n-1` 条边 。
