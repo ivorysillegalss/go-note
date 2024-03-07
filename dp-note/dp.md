@@ -282,6 +282,62 @@ class Solution {
 
 
 
+### [740. 删除并获得点数](https://leetcode.cn/problems/delete-and-earn/)
+
+给你一个整数数组 `nums` ，你可以对它进行一些操作。
+
+每次操作中，选择任意一个 `nums[i]` ，删除它并获得 `nums[i]` 的点数。之后，你必须删除 **所有** 等于 `nums[i] - 1` 和 `nums[i] + 1` 的元素。
+
+开始你拥有 `0` 个点数。返回你能通过这些操作获得的最大点数。
+
+**示例 1：**
+
+> 输入：nums = [3,4,2]
+> 输出：6
+> 解释：
+> 删除 4 获得 4 个点数，因此 3 也被删除。
+> 之后，删除 2 获得 2 个点数。总共获得 6 个点数。
+
+在打家劫舍中我们通过动态规划比较，是`i-1`家的最大数，还是`i-2`家 + 当前第i家的和的数量关系，也就得状态转移方程：
+
+`dp[i] = Math.max(dp[i - 1],dp[i  -2] + nums[i])` 
+
+这一题本质上也是一样的，我们需计算不同情况下的累加和。但是我们还没有**去掉某个点时的点数合集**，所以先算出去掉每一个点时所累加的值，就可以按照相同思路写出。而这个值，只需要遍历一次即可记录在一个辅助数组当中
+
+整个方法的时间复杂度为`O(n²)` 空间复杂度为`O(n)`
+
+```java
+class Solution {
+    public int deleteAndEarn(int[] nums) {
+        int[] count = new int[10001]; // 由于nums[i]的范围是1到10000，所以创建大小为10001的数组
+        int max = 0;
+        for (int num : nums) {
+            count[num] += num; // 直接累加值，而不是次数
+            max = Math.max(max, num);
+        }
+
+        // 动态规划数组，dp[i]代表考虑到数字i时能获得的最大点数
+        int[] dp = new int[max + 1];
+        dp[1] = count[1];
+        if (max > 1) {
+            dp[2] = Math.max(count[1], count[2]);
+        }
+
+        for (int i = 3; i <= max; i++) {
+            dp[i] = Math.max(dp[i - 1], dp[i - 2] + count[i]);
+        }
+
+        return dp[max]; // 返回考虑所有数字时的最大点数
+    }
+}
+```
+
+
+
+
+
+
+
 ### [2369. 检查数组是否存在有效划分](https://leetcode.cn/problems/check-if-there-is-a-valid-partition-for-the-array/)
 
 给你一个下标从 **0** 开始的整数数组 `nums` ，你必须将数组划分为一个或多个 **连续** 子数组。
