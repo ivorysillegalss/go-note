@@ -240,7 +240,7 @@ func CreateBot(isOfficial bool) (int, error) {
     if err := dao.DB.Table("bot").Create(botToStruct).Error; err != nil {
        return -1, err
     }
-    return botToStruct.BotId, nil
+    return botToStruct.BotId, nil 
 }
 ```
 
@@ -509,6 +509,8 @@ func main() {
     }
 }
 ```
+
+
 
 
 
