@@ -514,3 +514,27 @@ func main() {
 
 
 
+### gorm表连接查询错误
+
+```go
+	var records []*Record
+if errors.Is(redis.Nil, err) {
+    //redis中查不到的时候去mysql里查
+    if err := dao.DB.Joins("JOIN chat_generation ON chat_ask.record_id = chat_generation.record_id").Where("chat_id = ?", chatId).
+       Find(&records).Limit(10).Order("record asc").Error; err != nil {
+       return ErrorRecord(), err
+    }
+```
+
+此处的本意是在mysql中查询两个表中的内容，并将其合并存入records中，定位后是Find出的错
+
+没法d 修改为原SQL语句 不报错
+
+但是显示警告 `SQL dialect is not configured` GPT说是方言未确定与gorm的版本问题 暂且修改为下方代码
+
+```go
+err := dao.DB.Raw("SELECT * FROM chat_ask JOIN chat_generation ON chat_ask.record_id = chat_generation.record_id WHERE chat_ask.chat_id = ?", chatId).Scan(&records).Limit(10).Order("recordId asc").Error
+if err != nil {
+    // 处理错误
+}
+```

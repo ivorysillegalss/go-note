@@ -1,4 +1,4 @@
-# cloud
+# Cloud
 
 ## 使用的版本
 
@@ -501,3 +501,269 @@ Nacos不仅支持上方的配置冷更新，同时也支持热更新。结合spr
 
 将所有情况列举出来可以得到：`特定环境  >  云端共享  >  本地`
 
+
+
+
+
+## Feign
+
+Feign为一**声明式**http客户端，替代发起远程调用的`RestTemplate`
+
+
+
+### 快速使用
+
+引入依赖
+
+```xml
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-openfeign</artifactId>
+<dependency>
+```
+
+在主类**SpringBootApplication**中添加 `@EnableFeignClients`注解
+
+```java
+@EnableFeignClients
+@SpringBootApplication
+public class EurukademoApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(EurukademoApplication.class, args);
+    }
+}
+```
+
+上述两部完善使用Feign的前提，下面为对`RestTemplate`和`Feign客户端`的同一业务使用对比
+
+1. **RestTemplate**
+
+```java
+String url = "http://userservice/user/" + order.getUserId();
+User user = restTemplate.getForObject(url,User.class);
+```
+
+2. **Feign**
+
+```java
+@FeignClient("userservice")
+public interface UserClient{
+	@GetMapping("/user/{id}")
+	User findByIf(@PathVariable("id") Long id);
+}
+```
+
+当使用远程调用的时候，只需要将对应声明所需的信息告诉Feign，就可以自动装配，有点类似**Mybatis的注解使用**
+
+> 声明一个服务需要什么信息？ 如上：
+>
+> 服务名称：userservice
+>
+> 请求方式：GET
+>
+> 请求路径：/user/{id}
+>
+> 请求参数：Long id
+>
+> 返回值类型：User
+
+只要拿到这五个信息 并在对应的模块中进行注册并自动装配，就可以直接调用接口进行远程调用
+
+
+
+### 自定义Feign配置项
+
+配置Feign可在**配置文件中**或者**代码中**直接定义
+
+1. 配置文件
+
+**全局生效**
+
+```yaml
+feign:
+	client:
+		config:
+			default:   # 此处default代表配置项的配置 适用于全局
+				loggerLevel: FULL
+```
+
+**局部生效**
+
+```
+feign:
+	client:
+		config:
+			userservice: 
+    # 此处非default 而是以某一个服务名称 代表只适用于对应微服务的配置
+				loggerLevel: FULL
+```
+
+
+
+2. 代码处修改
+
+需要声明bean作为配置类
+
+```java
+public class FeignclientConfiguration{
+	@Bean
+	public Logger.Level feignLogLevel(){
+		return Logger.Level.FULL;
+	}
+}
+```
+
+相似的，全局配置和局部配置也有不同的配置形式，表现在注解上
+
+**全局配置**
+
+```java
+@EnableFeignCLients(defaultConfiguration = FeignclientConfiguration.class)
+```
+
+相似的，将配置类放到SpringBootApplication启动类中，开启上方注解，即可实现全局配置
+
+**局部生效**
+
+```java
+@Feignclient(value "userservice",configuration = FeignclientConfiguration.class)
+```
+
+使用`value`指定微服务名称,`configuration`指定配置类，放到上方所述的Feign的client类中即可完成面向单服务的配置。
+
+
+
+### 性能优化
+
+关于底层的客户端实现：
+
+- URLConnection 默认实现 不支持连接池
+- Apache HttpClient 支持连接池
+- OKHttp 支持连接池
+
+而**Feign**采用的是默认的URLConnection，由于不支持连接池，其在性能方面没有后两者优，但是我们可以通过配置来改变。同时可以减小日志级别，最好是为`basic or none`因为打印日志对性能的消耗很大
+
+
+
+**连接池配置** 以HttpClient为例
+
+引入依赖：
+
+```xml
+<!--httpClient的依赖-->
+<dependency>
+	<groupId>io.github.openfeign</groupId>
+	<artifactId>feign-httpclient</artifactId>
+</dependency>
+```
+
+配置连接池：
+
+```
+feign:
+	client:
+		config:
+			default:#default全局的配置
+				LoggerLevel:BASIC#日志级别，BASIC就是基本的请求和响应信息
+httpclient:
+	enabled:true#开启Feign对HttpClient的支特
+	maX-connections:200#最大的连接数
+	maX-connections-per-route:50#每个路径的最大连接数
+```
+
+
+
+### 应用方法
+
+观察远程调用，我们可以发现在消费者和提供者所提供的**接口信息是一致的且必须一致**（两者的请求类型 请求参数 路径信息等等）
+
+```java
+@GetMapping("/user/id]")
+User findById(@PathVariable("id")Long id);
+```
+
+```java
+@GetMapping("/id]")
+public User queryById(@PathVariable("id")Long id){
+	return userService.queryById(id);
+}
+```
+
+我们可以根据这个特点对代码进行再次优化，可以大致分为两种：
+
+1. **继承** 给消费者的FeignClient和提供者的controller定义统一的父接口作为标准。
+
+```java
+public interface UserAPI{
+@GetMapping("/user/id}")
+	User findById(@PathVariable("id")Long id);
+}
+```
+
+上为两者的父接口吗，若此时我作为**消费者(orderService)**，我只需要继承这一个父接口便可
+
+```java
+@Feignclient(value "userservice")
+public interface Userclient extends UserAPI{}
+```
+
+若我为**提供者(userService)**，我也可以实现这一个接口，并完善具体逻辑即可。
+
+但是这一种方法会使不同的微服务模块的api层上存在**紧耦合**，于是就有了方法2
+
+
+
+2. **抽取**  将FeignClient抽取为独立模块，并且把接口有关的POO、默认的Feigni配置都放到这个模块中，提供给所有消费者使用
+
+​	![image-20240314153953782](.\images\image-20240314153953782.png)
+
+​	大白话说，就是把使用频率高的clients和他的配置等都封装到一个模块中，消费者通过调用这个模块来实现远程调用。
+
+
+
+
+
+### 关于抽取
+
+如何实现抽取？以下以`userService & orderService`为例进行说明抽取过程
+
+1. 创建新模块，另存userService模块有关的api
+
+2. 导入`spring-cloud-open-feign`的依赖
+3. 将orderService中与userService有关的代码挪移到新模块中，删掉user相关的配置类
+4. orderService导入userService模块作为依赖，重新导包
+
+此时已经将代码成功抽取成功了，但是如果运行的话会失败，如下文报错
+
+```tex
+Field userclient in cn.exp.order.service.OrderService required a bean of types'cn.exp.feign.clients.Userclient'that could not be found.
+
+The injection point has the following annotations:  
+@org.springframework.beans.factory.annotation.Autowired(required=true)
+```
+
+报错的原因是，虽然成功导入了UserClient类，但是ispringboot自动注入对象(@Autowired)是以包为单位。而UserClent在另外一个模块中，根本就不在一个保重，所以即使识别到了有这个类，也无法为其分配对象。
+
+
+
+**解决办法**
+
+依然是在SpringBoot启动类的注解上加参数
+
+- 在@EnableFeignClients注解中添加pasePackages,指定
+  FeignClient所在的包
+
+```java
+@EnableFeignclients(basePackages "cn.itcast.feign.clients")
+```
+
+但是这一种方法也是直接以包为单位，是直接把对应的路径中的所有包加入扫描范围。即使不需要用到的包也是
+
+- 在@EnableFeignClients注解中添加clients,指定具体
+  FeignClientl的字节码
+
+```java
+@EnableFeignclients(clients = {UserClient.class})
+```
+
+这一种方法只需要将使用到的类挨个注册就好了，在需要调用的包数量较少的时候，是更优的解法。
