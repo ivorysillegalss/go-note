@@ -767,3 +767,262 @@ The injection point has the following annotations:
 ```
 
 这一种方法只需要将使用到的类挨个注册就好了，在需要调用的包数量较少的时候，是更优的解法。
+
+
+
+
+
+## GateWay
+
+![image-20240317160850172](.\images\image-20240317160850172.png)
+
+当我们的项目中有不同的角色，且不同的角色具有不同的权限组时，**身份的认证和权限的校验**是必需的，此时网关就可以起到这一作用。
+
+同时，网关将服务路由到对应的微服务中，同时也起到负载均衡的作用。
+
+当服务器的流量过大时，服务器可以起到一个拦截器的作用，将请求进行限流。
+
+
+
+### 快速运行
+
+创建新模块，并引入对应依赖（包括nacos的服务发现依赖）
+
+```java
+<！--网关依赖 -->
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-gateway</artifactId>
+</dependency>
+<! --nacos服务发现依赖 -->
+<dependency>
+	<groupId>com.alibaba.cloud</groupId>
+	<artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+</dependency>
+```
+
+GateWay本身也算是一个服务，也需要在nacos上进行注册
+
+下方为基本配置及 **编写路由的配置**  
+
+路由配置一般包括：
+
+1. **路由id**:路由的唯一标示
+2. **路由目标**(uri):路由的目标地址，http代表固定地址，lb代表根
+   据服务名负载均衡
+3. **路由断言**（predicates): 判断路由的规则是否符合规则组符合则转发到路由目的地
+4. **路由过滤器**（filters):对请求或响应做处理
+
+```yaml
+server:
+	port: 10010 #网关端
+spring:
+	application:
+		name: gateway #服务名称
+cloud:
+	nacos:
+		server-addr: localhost:8848#nacos地址
+		
+		
+gateway:
+	routes: #网关路由配置
+		- id: User-service #路由id,自定义，只要唯一即可
+			#uri: http://127.0.0.1:8081#路由的目标地址http就是固定地址
+			uri: lb://userservice #路由的目标地址Lb就是负载均衡，后面限服务名称
+			predicates: #路由断言，也就是判断请求是否符合路由规则的条件
+				- Path=/User/** #这个是按照路径匹配，只要以/User/开头就符合要求
+		- id: order-service
+			uri: lb://orderservice
+			predicates:
+				- Path=/order/**
+            
+            # 网关过滤器配置
+            # filters: AddRequestHeader=Truth,Itcast is freaking aowsome!
+    default-filters: AddRequestHeader=Truth,Itcast is freaking awesome!
+```
+
+上方routes为基本的路由配置
+
+![image-20240317162653823](.\images\image-20240317162653823.png)
+
+以此图+上方路由配置为例，由于端口是10010，用户访问到网关，由于访问的是`/user/1`，按照路由规则应路由到userservice中，于是网关通过nacos注册中心拉取userservice服务的列表。并经过负载均衡后访问到真实的地址。
+
+
+
+### 路由断言工厂
+
+**Route Predicate Factory**
+
+在gateway中，路由断言的规则是由其中**断言工厂**读取并进行处理的。可知上方的路由断言规则是根据路径来判断的，但是断言的条件在 **SpringCloudGateway** 中还有很多个
+
+```yaml
+routes: #网关路由配置
+		- id: User-service #路由id,自定义，只要唯一即可
+			#uri: http://127.0.0.1:8081#路由的目标地址http就是固定地址
+			uri: lb://userservice #路由的目标地址Lb就是负载均衡，后面限服务名称
+			predicates: #路由断言，也就是判断请求是否符合路由规则的条件
+				- Path=/User/** #这个是按照路径匹配，只要以/User/开头就符合要求
+```
+
+如下：
+
+| 名称       | 说明                         | 示例                                                         |
+| ---------- | ---------------------------- | ------------------------------------------------------------ |
+| After      | 是某个时间点后的请求         | `-After:=2037-01-20T17:42:47.789-07:00[America/Denver]`      |
+| Before     | 是某个时间点之前的请求       | `-Before:=2031-04-13T15:14:47.433+08:00[Asia/Shanghai]`      |
+| Between    | 是某两个时间点之前的请求     | `-Between:=2037-01-20T17:42:47.789-07:00[America/Denver],2037-01-21T17:42:47.789-07:00[America/Denver']` |
+| Cookie     | 请求必须包含某些cookie       | `Cookie=chocolate,ch.p`                                      |
+| Header     | 请求必须包含某些neader       | `Header=X-Request-ld,\d+`                                    |
+| Host       | 请求必须是访问某个host(域名) | `  Host=**.somehost.org,**.anotherhost.org`                  |
+| Method     | 请求方式必须是指定方式       | `Method=GET,POST`                                            |
+| Path       | 请求路径必须符合指定规则     | `-Path=/red/{segment),/blue/**`                              |
+| Query      | 请求参数必须包含指定参数     | `  -Query=:name,Jack或者-Query=name`                         |
+| RemoteAddr | 请求者的ip必须是指定范围     | `-RemoteAddr=:192.168.1.1/24`                                |
+| Weight     | 权重处理                     |                                     
+
+
+
+### 路由过滤器
+
+#### **GateWayFilter **
+
+![image-20240317170154055](.\images\image-20240317170154055.png)
+
+此处的路由过滤器与一般的过滤器概念是相同的，执行时机为**路由到对应微服务组件**，以及处理完**微服务逻辑之后的**，即网关的执行时机。可以在这两环节中对其中数据进行处理。
+
+```yaml
+gateway:
+	routes: #网关路由配置
+		- id: User-service 
+            # 网关过滤器配置
+            # filters: AddRequestHeader=Truth,Itcast is freaking aowsome!
+    default-filters: AddRequestHeader=Truth,Itcast is freaking awesome!
+```
+
+相关的过滤器可配置选项也有很多，详细可查阅光放网站，此处仅展现配置的基本形式
+
+如例：写在特定的网关路由当中，则表明此过滤器仅使用于当前的路由规则
+
+若想要过滤器对所有的网关规则生效，可如上配置`default-filters`
+
+
+
+####  **GlobalFilter**
+
+上方的可配置选项是spring提供的，换句话说，虽然可选项很多，但是难免也会由不满足需求的时候，特别是需要此过滤器执行的逻辑较复杂。此时需要定义一个**GlobalFilter**，此过滤器是通过实现同名接口实现的，充分满足逻辑处理的要求。
+
+下为对应接口及其对应参数的信息
+
+```java
+public interface GlobalFilter{
+    /**
+    *	处理当前清求，有必要的话通过{@link GatewayFilterChain}将清求交给下一个过滤器处理
+    * @param exchange请求上下文，里面可以获取Request、Response等信息
+    * @param chain用来把请求委托给下一代过滤器
+    * @return{@code Mono<Void>}返回标示当前过滤器业务结束
+    */
+	Mono<Void>filter(ServerWebExchange exchange,GatewayFilterChain chain);
+}
+```
+
+具体以登录鉴权为例：
+
+```java
+@Order(-1)
+@Component
+
+public class AuthorizeFilter implements GlobalFilter{
+	@Override
+    public Mono<Void>filter(ServerWebExchange exchange,GatewayFilterChain chain){
+	    //1.获取请求参数
+        ServerHttpRequest request = exchange.getRequest();
+        MultiValueMap<String,String> params = request.getQueryParams();
+        //2.获取参数中的authorization参数
+        String auth = params.getFirst(key:"authorization");
+        //3.判断参数值是否等于admin
+        if ("admin".equals(auth)){
+        //4.是，放行
+        return chain.filter(exchange);
+        }
+        //5.否，拦截
+        //5.1.设置状态码
+        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        //5.2.拦截请求
+        return exchange.getResponse().setComplete();
+    }
+}
+```
+
+例子方法中简单封装了鉴权逻辑，初次之外，上方的`@Order`代表着在多个过滤器并存时，过滤器之间执行的顺序（优先级）
+其中可以填一个int型的数字。**order中值越大，执行顺序越小**。即当`@Order(Integer.MAX_VALUE)`时，执行的优先级最小，反之亦然。
+
+同时，也可以使对应的过滤实现一个名为`Ordered`的接口，实现其中的`getOrder()`方法，这一方法和注解指定的效果是一样的。
+
+```java
+@Override
+public int getOrder(){
+	return 0;
+}
+```
+
+
+
+### 关于过滤器的执行顺序
+
+- 每一个过滤器都必须指定一个int类型的order值，orderf值越小，优先级越高，执行顺序越靠前。
+- GlobalFilteri通过实现Ordered接口，或者添加@Order注解来指定order值，由我们自己指定
+- 路由过滤器和defaultFilter的order由Spring指定，默认是按照声明顺序从1递增。
+- 当过滤器的order值一样时，会按照**defaultFilter>路由过滤器>GlobalFilter**的顺序执行。
+  
+
+### 跨域处理
+
+在网关介入的微服务程序中，由于所有的请求都是先到网关再到微服务的。也就是说对于相同的配置和请求，我们不需要在每一个微服务组件都进行实现，只需要在网关中配置即可。跨域请求也是如此。
+
+有的时候通过接口测试工具调试接口的时候可以正常访问，但是一旦使用前端页面+ajax发起请求就会有问题，这种情况下很有可能就是跨域的锅。
+
+![image-20240317184009317](.\images\image-20240317184009317.png)
+
+
+
+**什么是跨域？**
+
+跨域：域名不一致就是跨域，主要包括：
+
+- 域名不同：www.taobao.com和www.taobao.org和www.jd.com和 miaosha.jd.com
+- 域名相同，端口不同：localhost:8080 和 localhost8081
+- 跨域问题：**浏览器**禁止请求的发起者与服务端发生跨域**ajax**请求，请求被浏览器拦截的问题
+- 解决方案：CORS   (浏览器询问服务器是否允许跨域)
+  
+
+但是网关是基于`webFlux`实现的，在实现上与之前不同
+
+
+
+```yaml
+spring:
+	cloud:
+		gateway:
+
+			globalcors: #全局的跨域处理
+				add-to-simple-url-handler-mapping: true #解决options请求被拦截问题
+				corsConfigurations:
+					'[/*]':
+						allowed0rigins:#允许哪些网站的跨域请求
+							- "http://localhost:8090"
+							- "http://www.leyou.com"
+						allowedMethods: #允许的跨域ajaX的请求方式
+                            - "GET"
+                            - "POST"
+                            - "DELETE"
+                            - "PUT"
+                            - "OPTIONS"
+                        allowedHeaders: "*" #允许在请求中携带的头信息
+                        allowCredentials: true #是否允许携带cookie
+                        maxAge: 360000 #这次跨域检测的有效期
+```
+
+上方所说的CORS方案是浏览器通过`options`请求来询问服务器的 通过`add-to-simple-url-handler-mapping`的配置，首先先允许浏览器的访问请求。并根据需要选择需要跨域的url
+
+跨域的有效期结束后需要重新配置，而频繁配置对服务器的压力很大，所以我们这里设置`maxAge`为大数
+
