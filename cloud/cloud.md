@@ -1026,3 +1026,239 @@ spring:
 
 跨域的有效期结束后需要重新配置，而频繁配置对服务器的压力很大，所以我们这里设置`maxAge`为大数
 
+
+
+
+
+## RabbitMQ
+
+所有的服务可以按照特性粗略的分为**异步通讯**或**同步通讯**
+
+##### 同步調用
+
+就如发起远程调用的**Feign**是同步通讯。消費者需要等待生产者的响应。
+
+当业务逻辑随着迭代变得更复杂，多个微服务组件共存时。每次调用时，会挨个模块进行处理，**时延**会变长，系统效率变低。并且同步通讯下，信息容易耦合。不利于服务的更新迭代。
+
+若在调用中某个生产者突然宕机，也会由于服务间的强依赖，而导致**级联失败**的问题
+
+##### 异步调用
+
+事件驱动模式，在同样需要处理多个服务板块的时候。异步通讯的方式会使消费者**发布一个事件**，以此事件为媒介（**broker**），通知各个模块进行数据处理。与此同时，消费者无需等待各模块信息处理完毕，便可返回信息给用户。
+
+这一特性首先意味着**性能的提升和吞吐量的提高**
+
+同时broker的存在也对流量进行了**削峰**的作用。在高并发情况下，若按照同步通讯的模式，所有的请求就会瞬间打在各个组件当中，直接由各服务来承受高并发的压力。相比之下，异步通讯broker的存在，可以添加限流的缓冲机制。若超于服务的承受能力，可以先将请求阻塞在broker当中。起到缓存实现保护作用。
+
+但同时这一模式也会存在缺点
+
+不难发现，上述所说的所有优点都由于一个新引入的角色（事件 or broker），那么如若**broker宕机**，对整个微服务集群的影响是非常严重的。
+
+并且，引入broker之后，异步通讯的模式也决定了他的架构更加复杂，代码的实现和运维的难度大大提高。
+
+
+
+
+
+### MQ
+
+经过上面的引入，我们可以了解到在事件驱动架构中，最重要的部分是 **broker** 。在实际开发中，最常用的broker实现也就是**MQ**（MessageQueue）。
+
+以订单系统为例，若A订单下单成功，则会往MQ中发送一个事件（成功订购）的事件，也就是消息队列中的消息，并由MQ进行管理。相对应的，生产者（需要处理的业务逻辑）会订阅此事件。
+
+市面上主流的MQ包括 RabbitMQ , ActiveMQ , RocketMQ , Kafka 并且各有各的优点 此处不再赘述 
+
+![image-20240318165043335](.\images\image-20240318165043335.png)
+
+由于不同MQ之间的特性，一般来说，我们在**日志数据传输的场合中**可能偏向于使用kafka （时延 & 吞吐量）
+
+而在中小型企业中的**业务数据处理** 使用RabbitMQ可能会更适合（稳定性 & 无需深度定制）
+
+大型企业则可能更多的使用Rocket并在此基础上对其做出改进
+
+
+
+### 安装 - docker
+
+##### 单机部署
+
+以Centos7虚拟机为例，使用Docker来安装。
+
+在线拉取镜像文件
+
+``` sh
+docker pull rabbitmq:3-management
+```
+
+
+
+
+##### 集群部署
+
+接下来，我们看看如何安装RabbitMQ的集群。
+
+###### 集群分类
+
+在RabbitMQ的官方文档中，讲述了两种集群的配置方式：
+
+- 普通模式：普通模式集群不进行数据同步，每个MQ都有自己的队列、数据信息（其它元数据信息如交换机等会同步）。例如我们有2个MQ：mq1，和mq2，如果你的消息在mq1，而你连接到了mq2，那么mq2会去mq1拉取消息，然后返回给你。如果mq1宕机，消息就会丢失。
+- 镜像模式：与普通模式不同，队列会在各个mq的镜像节点之间同步，因此你连接到任何一个镜像节点，均可获取到消息。而且如果一个节点宕机，并不会导致数据丢失。不过，这种方式增加了数据同步的带宽消耗。
+
+我们先来看普通模式集群。
+
+###### 设置网络
+
+首先，我们需要让3台MQ互相知道对方的存在。
+
+分别在3台机器中，设置 /etc/hosts文件，添加如下内容：
+
+```
+192.168.150.101 mq1
+192.168.150.102 mq2
+192.168.150.103 mq3
+```
+
+并在每台机器上测试，是否可以ping通对方：
+
+
+
+### 运行MQ
+
+执行下面的命令来运行MQ容器：
+
+```sh
+docker run \
+ -e RABBITMQ_DEFAULT_USER=root \
+ -e RABBITMQ_DEFAULT_PASS=123456 \
+ --name mq \
+ --hostname mq1 \
+ -p 15672:15672 \
+ -p 5672:5672 \
+ -d \
+ rabbitmq:3-management
+```
+
+> -- hostname 为主机名字 单机部署时作用不大 但是若需要升级为集群的部署 则需要使用
+>
+> -- p 端口映射  15672为RabbitMQ官方的GUI映射端口  5672为通讯端口
+
+成功运行之后 也可以通过`docker ps`观察其是否在执行中的进程
+
+若没有问题，可进入对应的端口地址，能看到他的GUI页面。
+
+若为云服务器，则为真实IP。若为虚拟机，可以在
+
+![image-20240318171440970](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20240318171440970.png)
+
+成功登录之后， 可以看到以下的页面：
+
+- Connections中记录了生产者和消费者经MQ所进行的连接
+
+- Channels则是一个让生产者和消费者相连接的通道
+
+- Exchanges代表担当路由角色的交换机
+
+- Queues则是对应的队列
+
+- Admin是对应的管理员界面，管理信息
+
+![image-20240318172139233](.\images\image-20240318172139233.png)
+
+
+
+### 总体结构和概述
+
+![image-20240318172638235](.\images\image-20240318172638235.png)
+
+当信息被发送过来时，首先经由交换机进行路由，将信息传输到队列之中进行缓存（交换机只具备路由的功能）。消费者从队列中获取消息，进行处理。至于其中的虚拟主机是以角色为单位的，若新增一角色，则新增一虚拟主机。并且各个虚拟主机之间是**隔离**的，**不会互相干扰**。
+
+
+
+### AMQP
+
+消息发送和接受的一种标准，与语言无关。可用任意的语言发送。多被使用于MQ中的信息收发。
+
+
+
+### 快速入门 && SpringAMQP
+
+由于rabbitMQ自带的相关api操作及其繁琐，spring在其基础上进行了简化和封装，并提供了对应的模板`RabbitTemplate`供使用。以下直接略过原生api的使用，介绍如何通过`SpringAMQP`达成操作。
+
+​	MQ的官方文档中有5个demp示例，分别对应不同的用法，以下一一道来：
+
+1. **基本消息队列**
+
+HelloWorld案例
+
+​	`发布者 --> 消息队列 --> 订阅队列` 
+
+![image-20240318173240610](.\images\image-20240318173240610.png)
+
+ 基本的实现流程如下：
+
+1. 引入依赖
+2. 利用`RabbitTemplate`，在提供者服务中发送消息到`simple.queue`队列 （即基础消息队列）
+
+3. 在消费者服务中编写消费逻辑，并且绑定`simple.quque`队列
+   
+
+对应的AMQP依赖
+由于提供者和消费者都需要使用到这一依赖 因此这里直接把依赖写入父工程的文件中
+
+```xml
+<!--AMQP依赖，包含RabbitMQ-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-amqp</artifactId>
+</dependency>
+```
+
+
+
+**提供者操作**
+
+在`application,yml`中编写配置，添加对应的连接信息
+
+```yaml
+spring:
+	rabbitmq:
+        host: 192.168.150.138 # 主机名
+        port: 5672 # 端口
+        virtual-host: / # 虚拟主机
+        username: root # 用户名
+        password: 123456 # 密码
+```
+
+构建一个单元测试类，编写测试方法：
+
+```java
+@SpringBootTest
+public class SpringAmqpTest{
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+    @Test
+    public void testSimpleQueue(){
+        String queueName = "simple.queue";
+        String message "hello,spring amqp!";
+		rabbitTemplate.convertAndSend(queueName,message);
+    }
+}
+```
+
+
+
+**消费者操作**
+
+与提供者不同，消费者只需要创建一个监听器，来编写对应的消费逻辑：
+
+```java
+@Component
+public class SpringRabbitListener{
+    @RabbitListener(queues "simple.queue")
+	// 注解声明队列名称
+    public void listensimpleQueueMessage(String msg) throws InterruptedException{
+		System.oUt.println("spring消费者接收到消息：【"+msg+"】");
+    }
+}
+```
+
