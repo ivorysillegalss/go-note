@@ -1254,7 +1254,7 @@ public class SpringAmqpTest{
 ```java
 @Component
 public class SpringRabbitListener{
-    @RabbitListener(queues "simple.queue")
+    @RabbitListener(queues = "simple.queue")
 	// 注解声明队列名称
     public void listensimpleQueueMessage(String msg) throws InterruptedException{
 		System.oUt.println("spring消费者接收到消息：【"+msg+"】");
@@ -1262,3 +1262,239 @@ public class SpringRabbitListener{
 }
 ```
 
+
+
+2. **工作队列**
+
+可以提高消息处理速度，避免队列消息堆积
+
+多个消费者绑定同一个队列，一个信息只能由一个消费者进行处理
+
+![image-20240319145919809](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20240319145919809.png)
+
+在默认配置下，工作队列会采用消息预取机制：当大量的消息到达队列时，不同的消费者会提前通过**channel**把消息先拿过来（不处理）。但是这种情况下是与消费者的性能无关，是按照消费者的数量平均分配的。
+
+而可以通过修改配置文件，控制消息预取的上限：
+
+ 
+
+```yaml
+spring:
+	rabbitmq:
+    h0st: 192.168.150.101 #主机名
+	p0nt: 5672 #端口
+    virtval-host:/ #虚拟主机
+    username: itcast #用户名
+    password: 123321 #密码
+    listener:
+	    simple:
+    		prefetch: 1 #每次只能获取一条消息，处理完成才能获取下一个消息
+```
+
+
+
+3. **发布 订阅模式**
+
+其队列分发消息原理与基本工作队列是类似的。但是在此基础上加入了交换机，在SpringAMQP中，常见的交换机包括以下三种：
+
+![image-20240319152620723](.\images\image-20240319152620723.png)
+
+当提供者发送消息的时候，通过交换机路由到对应的队列中，进行消息的分发。但是exchange交换机这一角色只负责消息路由，不负责消息存储，若**在路由的过程中失败，会导致消息丢失**。
+
+
+
+3.1 **fanout** —— 广播交换机
+
+这种类型的交换机把所收到的信息路由到每一个队列当中
+
+**提供者发布信息**
+
+创建配置类并把交换机和队列的信息进行注册
+
+```java
+@Confiquration
+public class FanoutConfig {
+	// 声明FanoutExchange交换机
+    @Bean
+    public FanoutExchange fanoutExchange(){
+	    return new FanoutExchange("itcast.fanout");
+    }
+    //声明第1个队列
+    @Bean
+    public Queue fanoutQueve1(){
+ 	   return new Queue("fanout.queue1");
+    }
+    //绑定队列1和交换机
+    @Bean
+    public Binding bindingQueue1(Queue fanoutQueue1,FanoutExchange fanoutExchange){
+    	return BindingBuilder.bind(fanoutQueue1).to(fanoutExchange);
+    }
+    // ···
+    // 以相同方式声明第2个队列，并完成绑定
+}
+```
+
+**消费者消费信息**
+
+```java
+@RabbitListener(queues = "fanout.queue1")
+public void listenFanoutQueue1(String msg) {
+	System.out.println("消费者1接收到Fanout消息：【"+msg+"】");
+}
+
+@RabbitListener(queues = "fanout.queue2")
+public void listenFanoutQueue2(String msg){
+	System.out.println("消费者2接收到Fanout消息：【"+msg+"】");
+}
+```
+
+ 在**提供者服务**中发送信息到**交换机**
+
+```java
+@Test
+public void testFanoutExchange(){
+	// 队列名称
+	String exchangeName = "itcast.fanout";
+	//消息
+	String message = "hello,everyone!";
+	//发送消息，参数分别是.交互机名称、RoutingKey(暂时为空)、消息
+	rabbitTemplate.convertAndSend(exchangeName,"",message);
+}
+```
+
+按照上方的流程编写好，就写好了一个由fanout交换机实现的发布订阅demo
+
+
+
+3.2 **directexchange** —— 路由模式交换机
+
+与fanout广播不同，dierect模式下会将接收到到的信息，按照规则路由到指定的队列当中。被称为路由模式。
+
+- 每一个Queue都与Exchange会设置一个**BindingKey**
+- 而发布者发送消息时，也需要指定消息的**RoutingKey**
+- 过程中，交换机通过比较两个key。将其路由到对应的规则当中
+
+同时，由于是根据两个key进行配对的，当多个队列都具有相同的key时，此`directExchange`也等价于`fanoutExchange`
+
+![image-20240319160200311](.\images\image-20240319160200311.png)
+
+在消费者监听信息板块 我们可以改变原有使用`@Bean`方式注入，而是改为采用`@RabbitListener`注入
+
+```java
+@RabbitListener(bindings = @QueueBinding(
+    value = @Queue(name = "direct.queue1"),
+    exchange = @Exchange(name = "exp.direct",type = ExchangeTypes.DIRECT),
+    key = {"red","blue"}
+))
+public void listenDirectQueue1(String msg){
+	System.out.println("消费者1接收到Direct消息：【"+msg+"】");
+}
+
+@RabbitListener(bindings = @QueueBinding(
+    value = @Queue(name = "direct.queue2"),
+    exchange = @Exchange(name = "exp.direct",type = ExchangeTypes.DIRECT),
+    key = {"red","yellow"}
+))
+public void listenDirectQueue2(String msg){
+	System.out.println("消费者2接收到Direct消息：【"+msg+"】");
+}
+```
+
+在`@RabbitListener`注解中，我们通过`binding`选项定义需要绑定的队列。绑定队列可以使用另一注解`@QueueBinding`。
+
+如上，需要绑定队列`@Queue`，交换机`@Exchange`，`key`则是上方所说的`BindingKey`和`RoutingKey`
+
+
+
+3.3 topicExchange
+
+TopicExchange.与DirectExchange类似，区别在于routingKey必须是多个单词的列表，并且以`.`分割。
+
+Queue与Exchange指定BindingKey时可以使用通配符 `#` 和 `*`
+
+![image-20240319165437956](.\images\image-20240319165437956.png)
+
+这部分的代码与上方directExchange没有大差别，就只是把`RoutingKey & BindingKey`修改为通配符的格式罢了。
+
+```java
+@RabbitListener(bindings = @QueveBinding(
+    value = @Queue(name = "topic.queue1"),
+    exchange = @Exchange(name = "itcast.topic",type = ExchangeTypes.TOPIC),
+    key = "china.#"
+))
+public void listenTopicQueve1(String msg){
+	System.out.println("消费者1接收到Topic消息：【"+msg+"】");
+}
+@RabbitListener(bindings = @QueueBinding(
+    value = @Queue(name = "topic.queue2"),
+    exchange = @Exchange(name = "itcast.topic",type = ExchangeTypes.TOPIC),
+    key = "#.news"
+))
+public void listenTopicQueue2(String msg){
+	System.out.println("消费者2接收到Topici消息：【"+msg+"】");
+}
+```
+
+
+
+### 消息转换器
+
+在RabbitMQ中，我们可以不仅可以发送字符串，也可以发送任意类型的对象。但是这里发送的原理默认是将**字符串序列化**后发送。序列化的方式耗时长，并且序列化后生成的字符串长度较长，放入消息队列中传输效率也低。所以我们可以通过自定义他的转换规则，提高整体传输的效率。修改为JSON序列化就是一种解法。
+
+我们可以找到Spring中对消息处理的位置 `org.springframework.amqp.support.converter.MessageConverter`
+
+如果要修改只需要定义一个`MessageConverter`的Bean即可
+
+（**一旦声明就会将原有配置覆盖** —— 自动装配的原理）
+
+由于修改响应类型之后，无论是提供者和消费者都需要用到，所以可以直接把依赖放入父工程当中。
+
+首先需要引入`fastjson`依赖
+
+```java
+<dependency>
+    <groupId>com.fasterxml.jackson.dataformat</groupId>
+    <artifactId>jackson-dataformat-xml</artifactId>
+    <version>2.9.10</version>
+</dependency>
+```
+
+在提供者服务处声明对应的Bean
+
+```java
+@Bean
+public MessageConverter jsonMessageConverter(){
+	return new Jackson2JsonMessageConverter();
+}
+```
+
+
+
+ps: 修改完之后能在RabbitMQ的GUI中看到对应的响应信息变化
+
+修改前：
+
+![image-20240319173307679](.\images\image-20240319173307679.png)
+
+修改后：
+
+![image-20240319172316915](.\images\image-20240319172316915.png)
+
+
+
+
+
+**消费者处修改**
+
+提供者只需要创建对应bean覆盖规则就好了，因为默认`rabbitTemplate.convertAndSend()`方法中就允许发送任意类型对象的值。
+
+但是作为消费者，在引入依赖创建Bean之后，我们需要修改监听的规则，从而能对json反序列化后的结果进行映射。
+
+```java
+@RabbitListener(queues = "object.queue")
+public void listenObjectQueue(Map<String,Object> msg){
+	System.out.println("接收到object.queue的消息："+msg);
+}
+```
+
+!!! **一定需要确定提供者和消费者双方的MessageConverter是相同的。**
