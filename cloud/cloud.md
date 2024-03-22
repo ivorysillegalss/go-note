@@ -1498,3 +1498,160 @@ public void listenObjectQueue(Map<String,Object> msg){
 ```
 
 !!! **一定需要确定提供者和消费者双方的MessageConverter是相同的。**
+
+
+
+
+
+## EleasticSearch
+
+开源分布式搜索引擎，可实现 **搜索** 、 **日志统计** 、 **分析** 、 **系统监控等功能** 
+
+### ELK
+
+以elasticsearch为核心的技术栈，包括beats,Logstash,kibana,es
+
+**Lucene**
+
+ es基本的搜索api
+
+
+
+### 倒排索引
+
+此处先引入`文档`与`词条`的概念
+
+- **文档**：每一条数据就是一个文档
+- **词条**：将文档中的词语按照语义分词，得到的就是词条
+
+一般的搜索方式根据id检索，称为”**正向索引**“，当需要搜索的字符串比较复杂的时候，正向索引只能根据id一条一条的进行筛选。效率较低。
+
+针对此查询效率较低的问题，开发了`倒排索引`。按文档中原有语义**分词**，以分词后的词条创建索引。并在同时记录对应文档的信息（id信息）。这一方法在查询的时候，首先会通过原句各词条挑选出对应的文档id，后返回**更符合要求的**文档。
+
+
+
+![image-20240322193029118](.\images\image-20240322193029118.png)
+
+
+
+### 文档
+
+elasticsearch是面向文档存储的。严格意义上属于`NoSql`，类似于mongoDB等的存储方式。对应的文档数据会被序列化为json后存储在es中。
+
+![image-20240322194335602](.\images\image-20240322194335602.png)
+
+在某种意义上，es和mysql等传统关系型数据库具有一定的共通点
+
+| MySQL  | Elasticsearch | 说明                                                         |
+| ------ | ------------- | ------------------------------------------------------------ |
+| Table  | Index         | 索引(index),就是文档的集合，类似数据库的表(table)            |
+| Row    | Document      | 文档(Document),就是一条条的数据，类似数据库中的行(Row),文档都是JS0N格式 |
+| CoLumn | Field         | 字段(Field),就是JS0N文档中的字段，类似数据库中的列(Column)   |
+| Schema | Mapping       | Mapping(映射)是索引中文档的约束，例如字段类型约束。类似数据库的表结构（Schema) |
+| SQL    | DSL           | DSL是elasticsearch提供的JS0N风格的请求语句，用来操作elasticsearch,实现CRUD |
+
+从上面表格可以知道es确实具有一定的存储能力，但是其nosql的性质和其他特点决定了他在保护数据的**安全与一致性**上不如Mysql。在实际开发中，我们一般还是利用es进行数据的搜索分析和计算。存储相关的任务还是给到Mysql等传统数据库。
+
+但是如何保证es中待搜索的数据与mysql中已包含的数据之间的一致性呢？两者之间存在对应的数据同步内容，后文将会介绍。
+
+![image-20240322195414659](.\images\image-20240322195414659.png)
+
+
+
+### 部署 安装 运行
+
+详细安装教程可以参照另一md 此处仅介绍如何部署单点es
+
+同样可以直接使用docker进行拉取
+
+```bash
+docker pull elasticsearch
+```
+
+我此处是直接docker来load本地文件中的镜像
+
+![image-20240322200908001](.\images\image-20240322200908001.png)
+
+
+
+创建网络组
+
+```bash
+docker network create es-net
+```
+
+运行docker命令，启动docker容器
+
+```bash
+docker run -d \
+	--name es1 \
+    -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
+    -e "discovery.type=single-node" \
+    -v es-data:/usr/share/elasticsearch/data \
+    -v es-plugins:/usr/share/elasticsearch/plugins \
+    --privileged \
+    --network es-net \
+    -p 9200:9200 \
+    -p 9300:9300 \
+elasticsearch:7.12.1
+```
+
+- `-e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `设置jvm内存堆大小 因为es是基于java实现的，在运行前需要提前设定他能使用的内存大小，这里是修改成512m
+- `-e "discovery.type=single-node" `配置运行模式，此处是将es配置为单点模式下运行。
+- `-v es-data:/usr/share/elasticsearch/data \
+      -v es-plugins:/usr/share/elasticsearch/plugins`设置es存放数据的目录以及存放插件的目录。
+
+- `--privileged`：授予逻辑卷访问权
+- `--network es-net`使用的网络组 可修改为自定义网络组
+- `-p 9200:9200`暴露给用户访问的http使用的端口
+- `-p 9300:9300 `es中各个容器节点互联时使用的端口
+
+
+
+成功启动容器之后可以通过`docker ps`查看运行中的容器是否含有对应的es
+
+```
+
+[root@localhost home]# docker ps
+CONTAINER ID   IMAGE                  COMMAND                   CREATED         STATUS         PORTS                                                                                  NAMES
+00909ae6cfdb   elasticsearch:7.12.1   "/bin/tini -- /usr/l…"   7 seconds ago   Up 6 seconds   0.0.0.0:9200->9200/tcp, :::9200->9200/tcp, 0.0.0.0:9300->9300/tcp, :::9300->9300/tcp   es1
+```
+
+
+
+在成功运行容器后，可以在主机输入对应的`ip+端口`，若浏览器返回下方json信息，则说明es启动成功。
+
+![image-20240322203039290](.\images\image-20240322203039290.png)
+
+
+
+接下来，我们需要安装操控es的GUI界面，即kibana
+
+同样使用docker在网络上拉取包或是加载本地的镜像
+
+```bash
+docker run -d \
+--name kibana \
+-e ELASTICSEARCH_HOSTS=http://es1:9200 \
+--network=es-net \
+-p 5601:5601  \
+kibana:7.12.1
+```
+
+- `-e ELASTICSEARCH_HOSTS=http://es:9200`设置环境变量，设置es的主机名，若和对应的es在同一个网络组当中，便可以类似上方直接以es容器的名称作为ip进行设置。
+- `--network`设置网络组，一定要与es在同一个网络组当中，不然无法连接，上方环境变量同理。
+
+同理，启动之后也可以通过`docker ps`来观察进程情况
+
+```bash
+[root@localhost ~]# docker ps
+CONTAINER ID   IMAGE                  COMMAND                   CREATED         STATUS          PORTS                                                                                  NAMES
+a5dd1cfc3b89   kibana:7.12.1          "/bin/tini -- /usr/l…"   6 seconds ago   Up 5 seconds    0.0.0.0:5601->5601/tcp, :::5601->5601/tcp                                              kibana
+26d99c8094b5   elasticsearch:7.12.1   "/bin/tini -- /usr/l…"   2 hours ago     Up 53 seconds   0.0.0.0:9200->9200/tcp, :::9200->9200/tcp, 0.0.0.0:9300->9300/tcp, :::9300->9300/tcp   es
+```
+
+
+
+成功启动容器后，也可以通过映射的端口来进入此kibana的界面
+
+![image-20240322221359596](.\images\image-20240322221359596.png)
