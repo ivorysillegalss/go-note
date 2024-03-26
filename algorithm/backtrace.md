@@ -1,3 +1,5 @@
+# 子集型
+
 ### [78. 子集](https://leetcode.cn/problems/subsets/)
 
 给你一个整数数组 `nums` ，数组中的元素 **互不相同** 。返回该数组所有可能的子集（幂集）。
@@ -188,3 +190,204 @@ class Solution {
 }
 ```
 
+
+
+
+
+
+
+# 组合型
+
+### [216. 组合总和 III](https://leetcode.cn/problems/combination-sum-iii/)
+
+找出所有相加之和为 `n` 的 `k` 个数的组合，且满足下列条件：
+
+- 只使用数字1到9
+- 每个数字 **最多使用一次** 
+
+返回 *所有可能的有效组合的列表* 。该列表不能包含相同的组合两次，组合可以以任何顺序返回。
+
+**示例 1:**
+
+> 输入: k = 3, n = 7
+> 输出: [[1,2,4]]
+> 解释:
+> 1 + 2 + 4 = 7
+> 没有其他符合的组合了。
+
+**示例 2:**
+
+> 输入: k = 3, n = 9
+> 输出: [[1,2,6], [1,3,5], [2,3,4]]
+> 解释:
+> 1 + 2 + 6 = 9
+> 1 + 3 + 5 = 9
+> 2 + 3 + 4 = 9
+> 没有其他符合的组合了。
+
+这一道题其实也可以理解成**子集型回溯 + 剪枝**
+
+分析题目可得，合法的组合需要以下两个条件限定：
+
+- 数量为`k`
+- 和为`n`
+
+同时要求数字由`1 ~ 9`中挑选，并且**不允许重复**
+
+按照上方dfs的思路，我们可以由9往前回溯计算，每一次**需凑成的和与当前值相减**
+
+转换一下思路，也就是说当出现以下条件时不符合要求：**（剪枝）**
+
+设一共需凑成`k`个数，已凑成`a`个数，也就还需加入`k - a`个数
+
+- 由于从9往前回溯计算，每次递归中的索引`i`即代表着还剩`i`个数可进行遍历，若此时`i < k - a`，从数量上不符合要求。
+- 递归时，相减后的值<0，即**递归时计算和 > n**，从大小上不符合要求。
+- 递归时，**剩余的待回溯的值总和 < 相减后的值**，即`0 ~ a`中的**所有值加起来仍 < n**，从大小上不符合要求。
+
+
+
+处理好这四个递归时限定条件，可以按照`0~1`背包的思路写出代码如下：
+
+写法1：通过答案
+
+```java
+class Solution {
+    int k;
+    List<List<Integer>> ret = new ArrayList<>();
+    List<Integer> path = new ArrayList<>();
+    public List<List<Integer>> combinationSum3(int k, int n) {
+        this.k = k;
+        dfs(9,n);
+        return ret;
+    }
+
+    public void dfs(int i,int t){
+        int d = k - path.size();
+        // 表示促成k个数还需要d个数
+        if(i < d) return;
+        // 如果剩下的数的数量 小于 需要的数量
+        if(t < 0 && t > (i * 2 - d + 1) * d / 2) return;
+        // 如果剪掉之后剩的小于0 即代表减多了
+        // 或 如果剩下的数的和小于所需的 代表怎么加都加不到  
+
+        if(t == 0 && d == 0){
+            // 如果满足和为n 且 数为k
+            ret.add(new ArrayList<>(path));
+        }
+
+        // 回溯
+        for(int j = i;j > 0;--j){
+            path.add(j);
+            // 类似0~1背包回溯思路
+            dfs(j - 1,t - j);
+            path.remove(path.size() - 1);
+        }
+    }
+
+}
+```
+
+写法2：通过输入
+
+```java
+class Solution {
+    int k;
+    List<List<Integer>> ret = new ArrayList<>();
+    List<Integer> path = new ArrayList<>();
+    public List<List<Integer>> combinationSum3(int k, int n) {
+        this.k = k;
+        dfs(9,n);
+        return ret;
+    }
+
+    public void dfs(int i,int t){
+        int d = k - path.size();
+        if(i < d) return;
+        if(t < 0 || t > (i * 2 - d + 1) * d / 2) return;
+        if(t == 0 && d == 0){
+            ret.add(new ArrayList<>(path));
+            return;
+        }
+        // 不选这个数
+        if(i > d) dfs(i - 1,t);
+
+        path.add(i);
+        dfs(i - 1,t - i);
+
+        path.remove(path.size() - 1);
+    }
+
+}
+```
+
+不难看出，两种写法虽然回溯的思路不一样，但是他们在写法上都是相似的。
+
+1. 判断各种剪枝条件
+2. 判断是否为合法所求元素，即`归`的边界条件
+3. 根据题意，思考每一次`递`时需要变化的条件。
+
+
+
+
+
+### [22. 括号生成](https://leetcode.cn/problems/generate-parentheses/)
+
+数字 `n` 代表生成括号的对数，请你设计一个函数，用于能够生成所有可能的并且 **有效的** 括号组合。
+
+**示例 1：**
+
+> 输入：n = 3
+> 输出：["((()))","(()())","(())()","()(())","()()()"]
+
+**示例 2：**
+
+> 输入：n = 1
+> 输出：["()"]
+
+这一题本质上也是回溯的问题，如果使用**选或不选**的思路来看，这一题就非常易懂了。
+
+由题意，我们可以知道符合要求的要求有：
+
+- 左括号与右括号相配对
+- 递归时，左括号的个数一定大于等于右括号
+
+相反的，我们可知剪枝条件 & 限定条件有：
+
+- 右括号 >  左括号，不可能组成合法序列
+- 左括号和右括号数量大于n （保证数量范围的情况下，不可能会对应相同数量的相反括号）
+
+明确了这一条件之后，我们即可写出如下代码：
+
+这里直接把左右括号的数量初始化为n，并且在dfs中动态改变括号个数
+
+```java
+class Solution {
+    List<String> ret = new ArrayList<>();
+    StringBuilder sb = new StringBuilder();
+
+    public List<String> generateParenthesis(int n) {
+        dfs(n, n);
+        return ret;
+    }
+
+    public void dfs(int l, int r) {
+        if (l > r) { // 保证每时每刻左括号数量不少于右括号
+            return;
+        }
+        if (l == 0 && r == 0) { // 当所有括号都正确添加
+            ret.add(sb.toString());
+            return;
+        }
+        if (l > 0) {
+            sb.append('('); // 尝试添加左括号
+            dfs(l - 1, r);
+            sb.setLength(sb.length() - 1); // 回溯
+        }
+        if (r > 0) {
+            sb.append(')'); // 尝试添加右括号
+            dfs(l, r - 1);
+            sb.setLength(sb.length() - 1); // 回溯
+        }
+    }
+}
+```
