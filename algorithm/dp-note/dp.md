@@ -644,6 +644,108 @@ class Solution {
 
 
 
+### [337. 打家劫舍 III](https://leetcode.cn/problems/house-robber-iii/)
+
+小偷又发现了一个新的可行窃的地区。这个地区只有一个入口，我们称之为 `root` 。
+
+除了 `root` 之外，每栋房子有且只有一个“父“房子与之相连。一番侦察之后，聪明的小偷意识到“这个地方的所有房屋的排列类似于一棵二叉树”。 如果 **两个直接相连的房子在同一天晚上被打劫** ，房屋将自动报警。
+
+给定二叉树的 `root` 。返回 ***在不触动警报的情况下** ，小偷能够盗取的最高金额* 。
+
+ 
+
+**示例 1:**
+
+![img](https://assets.leetcode.com/uploads/2021/03/10/rob1-tree.jpg)
+
+> 输入: root = [3,2,3,null,3,null,1]
+> 输出: 7 
+> 解释: 小偷一晚能够盗取的最高金额 3 + 3 + 1 = 7
+
+**示例 2:**
+
+![img](https://assets.leetcode.com/uploads/2021/03/10/rob2-tree.jpg)
+
+> 输入: root = [3,4,5,1,3,null,1]
+> 输出: 9
+> 解释: 小偷一晚能够盗取的最高金额 4 + 5 = 9
+
+这一题本质上的差别只在他的存储结构中。我们需要以dfs递归的方式 ，通过后续遍历这一棵树，记录他能偷盗的最大值。
+
+本题中只有两种状态 即 **偷 or 不偷**
+
+对于每一个节点的状态，我们可以用一个长度为2的数组`res`来保存他，`res[0]`代表不偷当前节点能拿到的最大金币，`res[1]`代表偷当前节点能拿到的最大金币。
+
+此res数组其实就相当于一个一维dp数组，记录第i个点的最优值。而每一次递归都会产生一个新的一维数组，所以可以得到以下结论，若这颗树的深度为h，则一共开辟了`res[h][2]`的大小的数组，其实就是dp数组的一种体现。
+
+知道了dp数组的含义之后，我们需要观察题目状态的转移方式。此处对第i个点展开讨论：
+
+- 若偷第i个点，则不能偷`i.left`与`i.right`
+
+此时获得的值`res[i]，i = 1`，即为当前节点的值加上**第i-1个节点（i节点的子节点）**值的和
+
+`    res[1] = root.val + left[0] + right[0];`
+
+- 若不偷第i个点，则可以选择偷`i.left`与`i.right`，也可以选择不偷（**题目并没有要求必须隔一个点偷一次**），我们需要权衡其中的最大值
+
+`res[0] = Math.max(left[0],left[1]) + Math.max(right[0],right[1]);`
+
+此题的核心是将状态转移时的处理逻辑新开了一个一维`res[2]`数组进行保存，在dfs时，传递这个数组的值。便于下次进行状态转移时进行处理。
+
+代码**并没有显式对不能访问连续两层这一个条件做限制**，而是将**所有的节点偷or不偷的情况所获得的收益都计算了出来**。再进行比较。
+
+假如我偷了第i个节点，那我就**只能在`res[0]`没有偷i节点的子节点的基础上增加和。**
+
+假如我没有偷第i个节点，那我就能选择**偷or不偷中，收益最大的一方**。
+
+其中递归使用一维数组保存其不同的状态，很值得学习
+
+代码如下：
+
+```java
+/**
+ * Definition for a binary tree node.
+ * public class TreeNode {
+ *     int val;
+ *     TreeNode left;
+ *     TreeNode right;
+ *     TreeNode() {}
+ *     TreeNode(int val) { this.val = val; }
+ *     TreeNode(int val, TreeNode left, TreeNode right) {
+ *         this.val = val;
+ *         this.left = left;
+ *         this.right = right;
+ *     }
+ * }
+ */
+class Solution {
+    public int rob(TreeNode root) {
+        int[] res = rob1(root);
+        return Math.max(res[0],res[1]);
+    }
+    int[] rob1(TreeNode root){
+        int[] res = new int[2];
+        
+        if(root == null){
+            return res;
+        }
+
+        int[] left = rob1(root.left);
+        int[] right = rob1(root.right);
+
+        res[0] = Math.max(left[0],left[1]) + Math.max(right[0],right[1]);
+        res[1] = root.val + left[0] + right[0];
+        return res;
+    }
+}
+```
+
+
+
+
+
+
+
 ### [834. 树中距离之和](https://leetcode.cn/problems/sum-of-distances-in-tree/)
 
 给定一个无向、连通的树。树中有 `n` 个标记为 `0...n-1` 的节点以及 `n-1` 条边 。
@@ -926,6 +1028,130 @@ class Solution {
                 reroot(c,child,cnt1);
             }
         }
+    }
+}
+```
+
+
+
+
+
+### [718. 最长重复子数组](https://leetcode.cn/problems/maximum-length-of-repeated-subarray/)
+
+给两个整数数组 `nums1` 和 `nums2` ，返回 *两个数组中 **公共的** 、长度最长的子数组的长度* 。
+
+**示例 1：**
+
+> 输入：nums1 = [1,2,3,2,1], nums2 = [3,2,1,4,7]
+> 输出：3
+> 解释：长度最长的公共子数组是 [3,2,1] 。
+
+**示例 2：**
+
+> 输入：nums1 = [0,0,0,0,0], nums2 = [0,0,0,0,0]
+> 输出：5
+
+本题要求求出的是最长的 连续的子数组。
+
+这里先不讨论状态压缩优化。需要得到最长的子数组，以示例1为例，若nums1的i遍历到第3个元素`i = 4`时，nums2的i则遍历到第3个元素`j = 2`。而我们需要把这些状态保存起来，以便进行父状态的转移。
+
+但这里使用dp一维数组并不能很好的起作用。因为如上所述，我们需要保存由任意一个i到j时的最长状态。且若当`nums1[i] != nums2[j]`时，此时的长度重置为0。所以我们可以定义一个二维矩阵，维护每一个`nums1[i] 和 nums2[j]`之间的子数组长度。
+
+在把问题分割成二维之后，整个问题就变得很好解决。**当遍历到两个方程的元素相同，则代表此子数组长度在原基础上+1**。即`dp[i][j] = dp[i - 1][j - 1] + 1;`
+
+在遍历的时候同时维护一个最大值max，实时更新即可。
+
+代码如下：
+
+```java
+class Solution {
+    public int findLength(int[] nums1, int[] nums2) {
+        int n = nums1.length;
+        int m = nums2.length;
+        int[][] dp = new int[n + 1][m + 1];
+        int max = -1;
+
+        for(int i = 1;i <= n;i ++){
+            for(int j = 1;j <= m;j ++){
+                if(nums1[i - 1] == nums2[j - 1]){
+                    dp[i][j] = dp[i - 1][j - 1] + 1;
+                }
+                max = Math.max(max,dp[i][j]);
+            }
+        }
+        return max;
+    }
+}
+```
+
+注意：这里的dp数组从1开始遍历   `dp[i][j]`**代表**`nums1[i - 1]`**到**`nums[j - 1]`**的最长子数组**
+
+
+
+
+
+### [1143. 最长公共子序列](https://leetcode.cn/problems/longest-common-subsequence/)
+
+给定两个字符串 `text1` 和 `text2`，返回这两个字符串的最长 **公共子序列** 的长度。如果不存在 **公共子序列** ，返回 `0` 。
+
+一个字符串的 **子序列** 是指这样一个新的字符串：它是由原字符串在不改变字符的相对顺序的情况下删除某些字符（也可以不删除任何字符）后组成的新字符串。
+
+- 例如，`"ace"` 是 `"abcde"` 的子序列，但 `"aec"` 不是 `"abcde"` 的子序列。
+
+两个字符串的 **公共子序列** 是这两个字符串所共同拥有的子序列。
+
+**示例 1：**
+
+> 输入：text1 = "abcde", text2 = "ace" 
+> 输出：3  
+> 解释：最长公共子序列是 "ace" ，它的长度为 3 。
+
+**示例 2：**
+
+> 输入：text1 = "abc", text2 = "abc"
+> 输出：3
+> 解释：最长公共子序列是 "abc" ，它的长度为 3 。
+
+**示例 3：**
+
+> 输入：text1 = "abc", text2 = "def"
+> 输出：0
+> 解释：两个字符串没有公共子序列，返回 0 。
+
+这一题与上一题相比，大致思路都是相同的，唯一区别是不需要求子序列**连续**
+
+按照示例1的，我们可以画出dp矩阵如下：
+
+![image-20240402161349375](.\image\image-20240402161349375.png)
+
+以上则代表遍历对应`dp[i][j]`时进行处理的子序列。注意，真正进行比较的是**两个字符串的末尾字符**，图中高亮的部分则为尾部相同时，子序列长度变化的情况。
+
+通过这样的直观的呈现，我们也许可以发现当末尾字符不相同时，`dp[i][j]`的子序列长度与`dp[i - 1][j]`或`dp[i][j - 1]`有某种关系。再进一步分析，我们可以发现，在得出`dp[i][j]`的子序列长度前，我们需要通过`nums1[i - 1][j] & nums2[i - 1]`、`nums2[i][j - 1] & nums2[i][j - 1]`比较，并且取两者的**最大值**
+
+经过以上的分析，我们可以知道状态转移方程有
+
+```java
+if(text1.charAt(i - 1) == text2.charAt(j - 1)) dp[i][j] = dp[i - 1][j - 1] + 1;
+else dp[i][j] = Math.max(dp[i - 1][j],dp[i][j - 1]);
+```
+
+可得代码如下：
+
+```java
+class Solution {
+    public int longestCommonSubsequence(String text1, String text2) {
+        int n = text1.length();
+        int m = text2.length();
+        int[][] dp = new int[n + 1][m + 1];
+        int max = -1;
+        for(int i = 1;i <= n;i ++){
+            for(int j = 1;j <= m;j ++){
+                if(text1.charAt(i - 1) == text2.charAt(j - 1))  dp[i][j] = dp[i - 1][j - 1] + 1;
+                else dp[i][j] = Math.max(dp[i - 1][j],dp[i][j - 1]);
+                max = Math.max(max,dp[i][j]);
+            }
+        }
+        return max;
     }
 }
 ```
