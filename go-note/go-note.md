@@ -538,3 +538,92 @@ if err != nil {
     // 处理错误
 }
 ```
+
+
+
+
+
+
+
+### for-range遍历自定义结构体 并赋值回原本中
+
+这里的代码没有进行任何的优化 为一个n+1的查询 原代码
+
+```go
+err := dao.DB.Table("record_info").Where("chat_id = ?", chatId).Find(&records).Error
+		for index, record := range records {
+			err := dao.DB.Table("chat_ask").Where("record_id = ?", record.RecordId).First(record.ChatAsks).Error
+			if err != nil {
+				return ErrorRecord(), nil
+			}
+			err = dao.DB.Table("chat_generation").Where("record_id = ?", record.RecordId).First(record.ChatGenerations).Error
+			if err != nil {
+				return ErrorRecord(), nil
+			}
+		}
+```
+
+上面的代码有好几个问题
+
+- 直接给record.赋值 			for range中的v是原元素的一个副本 直接对他进行修改没有任何的意义
+
+- 结构体的指针未初始化
+
+  > ### 确保结构体指针已初始化
+  >
+  > 在 GORM 中，当使用 `First` 或类似方法填充结构体时，目标变量必须是一个已经初始化的结构体指针。原始代码中没有明确显示这一点，可能导致在尝试填充未初始化的指针时出现错误。在我的修改中，我增加了以下检查和初始化操作：
+  >
+  > ```go
+  > if records[index].ChatAsks == nil {
+  >     records[index].ChatAsks = &ChatAsk{}
+  > }
+  > if records[index].ChatGenerations == nil {
+  >     records[index].ChatGenerations = &ChatGeneration{}
+  > }
+  > ```
+  >
+  > 这两行代码检查 `ChatAsks` 和 `ChatGenerations` 是否为 `nil`（即未初始化）。如果是，就创建一个新的实例并赋予它们，这样 `First` 方法就有一个有效的目标来接收查询结果。
+
+  修改为如下即可。
+
+```go
+func GetChatHistoryForChat(chatId int) (*[]*Record, error) {
+    //返回一个存放record结构体的 指针的切片的 指针
+
+    var records []*Record
+
+    records, err := redisUtils.GetStruct[[]*Record](constant.ChatCache + strconv.Itoa(chatId))
+    //去redis里查
+
+    if errors.Is(redis.Nil, err) {
+       err := dao.DB.Table("record_info").Where("chat_id = ?", chatId).Find(&records).Error
+       if err != nil {
+          return nil, err
+       }
+       for index, record := range records {
+          // 确保 ChatAsks 和 ChatGenerations 是指向结构体的指针
+          if records[index].ChatAsks == nil {
+             records[index].ChatAsks = &ChatAsk{}
+          }
+          if records[index].ChatGenerations == nil {
+             records[index].ChatGenerations = &ChatGeneration{}
+          }
+
+          err := dao.DB.Table("chat_ask").Where("record_id = ?", record.RecordId).First(records[index].ChatAsks).Error
+          if err != nil {
+             return ErrorRecord(), nil
+          }
+          err = dao.DB.Table("chat_generation").Where("record_id = ?", record.RecordId).First(records[index].ChatGenerations).Error
+          if err != nil {
+             return ErrorRecord(), nil
+          }
+       }
+
+    } else if err != nil && !errors.Is(redis.Nil, err) {
+       //出现了其他错误
+       return ErrorRecord(), err
+    }
+
+    return &records, nil
+}
+```
