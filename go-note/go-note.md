@@ -627,3 +627,218 @@ func GetChatHistoryForChat(chatId int) (*[]*Record, error) {
     return &records, nil
 }
 ```
+
+
+
+
+
+
+
+### JAVA编码 GO解码JWT
+
+本程序登录注册模块用java实现，用户登录之后，利用JWT生成token并存储在redis之中，而在chat等使用go写的模块中，需要用go来转码。
+
+go get
+
+```bash
+go get github.com/dgrijalva/jwt-go
+```
+
+此处为例子的jwt中仅包含id信息
+
+```java
+    /**
+     * 生成JWT令牌
+     * @param claims JWT第二部分负载 payload 中存储的内容
+     * @return 用户token
+     */
+    public static String createJwt(Map<String, Object> claims){
+        return Jwts.builder()
+                .addClaims(claims)
+                .signWith(SignatureAlgorithm.HS256, SIGN_KEY.getBytes())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRE))
+                .compact();
+    }
+
+    /**
+     * 解析JWT令牌
+     * @param jwt JWT令牌
+     * @return claims内容的键值对
+     * Key:  username 用户名
+     *       userId  用户ID
+     */
+    public static Map<String,Object> parseJwt(String jwt){
+        Claims claims = Jwts.parser()
+                .setSigningKey(SIGN_KEY.getBytes())
+                .parseClaimsJws(jwt)
+                .getBody();
+        return new HashMap<>(claims);
+    }
+}
+```
+
+
+
+**解析JWT并验证**
+
+以下是一个Go的示例函数，演示如何解析JWT令牌提取claims：
+
+```go
+package main
+
+import (
+	"fmt"
+	jwt "github.com/dgrijalva/jwt-go"
+	"strconv"
+)
+
+var mySigningKey = []byte("SomersaultCloud")
+
+//var mySigningKey = "SomersaultCloud"
+
+// 解析JWT
+func parseJWT(tokenString string) (*jwt.Token, error) {
+	// 解析并验证JWT。注意：确保提供一个key function来验证签名算法
+	token, err := jwt.Parse(tokenString, verifySignature)
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}
+
+func verifySignature(token *jwt.Token) (interface{}, error) {
+	// 确保token的签名算法是我们期望的
+	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+	}
+	return mySigningKey, nil
+}
+```
+
+
+
+此处使用的是jwt包中的Parse方法 从它的源码中可以发现，其实是调用了`ParseWithClaims`，并以一个Map作为映射的Claims参数
+
+一般情况下，用户也可以自己调用`ParseWithClaims`，并自己规定数据返回的格式。此时需要自己定义一个Claims作为映射的形参。
+
+```go
+func Parse(tokenString string, keyFunc Keyfunc) (*Token, error) {
+    return new(Parser).Parse(tokenString, keyFunc)
+}
+
+func (p *Parser) Parse(tokenString string, keyFunc Keyfunc) (*Token, error) {
+	return p.ParseWithClaims(tokenString, MapClaims{}, keyFunc)
+}
+
+func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyfunc) (*Token, error) 
+```
+
+而这个Claims其实就是token中数据映射的模板，需要自定义解码后数据的格式，可以设计如下：
+
+```go
+type Claims struct {
+    ID int `json:"uid"`
+    jwt.StandardClaims
+}
+
+type StandardClaims struct {
+	Audience  string `json:"aud,omitempty"`
+	ExpiresAt int64  `json:"exp,omitempty"`
+	Id        string `json:"jti,omitempty"`
+	IssuedAt  int64  `json:"iat,omitempty"`
+	Issuer    string `json:"iss,omitempty"`
+	NotBefore int64  `json:"nbf,omitempty"`
+	Subject   string `json:"sub,omitempty"`
+}
+```
+
+继承`jwt.StandardClaims`，其中包含的是过期时间等一类的的信息。
+
+
+
+在成功转码token之后，我们需要提取其中所包含的信息
+
+```go
+
+func DecodeToId(tokenString string) (int, error) {
+	token, err := parseJWT(tokenString)
+	if err != nil {
+		fmt.Println("Error parsing token:", err)
+		return 0, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// 可以直接访问claims里的信息，例如用户ID
+		if uidStr, ok := claims["uid"].(string); ok {
+			uid, err := strconv.Atoi(uidStr)
+			if err != nil {
+				return 0, err
+			}
+			return uid, nil
+		}
+	} else {
+		fmt.Println("Invalid token")
+	}
+	return 0, err
+}
+```
+
+
+
+**但是需要注意，java中的数字签名必须是 字节数组！！！ 不可以是字符串**
+
+```java
+    public static String createJwt(Map<String, Object> claims){
+        return Jwts.builder()
+                .addClaims(claims)
+                // .signWith(SignatureAlgorithm.HS256, SIGN_KEY.getBytes())
+            	.signWith(SignatureAlgorithm.HS256, SIGN_KEY)
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRE))
+                .compact();
+    }
+```
+
+如上，虽然直接以以字符串为签名生成token没有问题，但是解码的时候，**go-jwt中不支持验证字符串**。
+
+在go-jwt中，起到验证数字签名方法的形参是`keyFunc`的返回值，go-jwt通过它的返回值来进行判断，虽然它返回的类型是一个`interface{}`，但并不支持字符串
+
+如上的错误操作会出现两种问题
+
+1. 直接使用字符串作为数字签名
+
+```go
+var mySigningKey = "SomersaultCloud"
+
+func verifySignature(token *jwt.Token) (interface{}, error) {
+	// 确保token的签名算法是我们期望的
+	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+	}
+	return mySigningKey, nil
+}
+```
+
+![image-20240422154255991](.\image\image-20240422154255991.png)
+
+单步调试的时候，可以看到err中的错误信息是`key is of invalid type`，（不是符合要求的类型）
+
+
+
+2. 将字符串改为字节数组后作为数字签名
+
+```go
+var mySigningKey = []byte("SomersaultCloud")
+
+func verifySignature(token *jwt.Token) (interface{}, error) {
+	// 确保token的签名算法是我们期望的
+	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+	}
+	return mySigningKey, nil
+}
+```
+
+![image-20240422154445126](.\image\image-20240422154445126.png)
+
+这种情况下，token原数字签名仅是字符串，此处将其字节流之后以原来不同，于是报错（数字签名错误）
