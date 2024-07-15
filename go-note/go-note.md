@@ -309,7 +309,7 @@ BindJSON方法 相当于springboot的自动映射 将前端传过来的JSON数�
 ```go
 PS D:\GoLand\GoProject\mini-gpt> $env:GOOS="linux"
 PS D:\GoLand\GoProject\mini-gpt> $env:GOARCH="amd64"
-PS D:\GoLand\GoProject\mini-gpt> go build main.go  
+PS D:\GoLand\GoProject\mini-gpt> go build main.go
 ```
 
 
