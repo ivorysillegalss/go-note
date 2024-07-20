@@ -281,10 +281,10 @@ spring.cloud.nacos.server-addr: localhost:8848
 
 ```xml
 <dependency>
-    <groupId>com.alibaba.cloud</groupId>
-	<artifactId>spring-cloud-starter-alibaba-nacos-
-discovery</artifactId>
-</dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        <version>2021.1</version>
+    </dependency>
 ```
 
 
