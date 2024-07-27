@@ -58,7 +58,7 @@ public void start() {
 
 ```
 
-![image-20240722150554069](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20240722150554069.png)![image-20240609232939012](C:\Users\chenz\OneDrive\桌面\note\juc\images\image-20240609232939012.png)
+![image-20240609232939012](C:\Users\chenz\OneDrive\桌面\note\juc\images\image-20240609232939012.png)
 
 
 
@@ -66,4 +66,12 @@ public void start() {
 
 
 
-![image-20240722150559422](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20240722150559422.png)
+![image-20240722150559422](C:\Users\chenz\OneDrive\桌面\note\juc\images\image-20240722150559422.png)
+
+ThreadLocal中的变量和对象是每个线程所特有的，彼此之间不共享。
+
+但是在使用完之后要注意释放回收，因为线程对象是通过强引用指向ThreadLocalMap的。
+
+而在java中，强引用是不会被自动回收的。也就是说这里线程对象的回收时机实际上就是线程的回收时机。若线程不被回收，其ThreadLocal中的对象就会一直存在，造成内存泄漏。
+
+所以应该主动手动调用ThreadLocal的remove方法，手动释放其中的资源。
