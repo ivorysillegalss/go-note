@@ -4,7 +4,7 @@ MySQL总体可以分为**Server层和存储引擎层**
 
 Server层含有 **连接器**、**分析器**、**优化器**、**执行器**等
 
-![image-20240712182126154](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20240712182126154.png)
+![image-20240712182126154](C:\Users\chenz\OneDrive\桌面\note\blog\images\image-20240712182126154.png)
 
 存储引擎个人理解是，存储的物理介质？支持InnoDB、MyISAM、Memory等多个存储引擎
 
