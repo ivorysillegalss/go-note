@@ -1103,6 +1103,8 @@ eg:`user1 -> user1.1 + user1.2 + user1.3`
 
 ##### 读写放大问题
 
+![](./images/ms4u6fkepdwse_dd2661ea83ca47f2b3e5951087152a0a.png)
+
 目前的架构按照将用户根据userID等类型进行分类存储，由于每个用户在每条信息上的状态都不一样（**用户间信息特征具有唯一性**）。所以在下发的过程需经过`userID -> sessionID -> deviceID`的路线进行多次查询。如上文所说这是其中一个性能瓶颈，也就是所谓的**读放大**问题。
 
 ![](./images/image (1).png)
