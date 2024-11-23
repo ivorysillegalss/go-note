@@ -842,3 +842,65 @@ func verifySignature(token *jwt.Token) (interface{}, error) {
 ![image-20240422154445126](.\image\image-20240422154445126.png)
 
 这种情况下，token原数字签名仅是字符串，此处将其字节流之后以原来不同，于是报错（数字签名错误）
+
+
+
+
+
+
+
+### 空channel相关
+
+现在有二个板块的代码
+
+```go
+var	dataReadyStreams = make(map[int]chan bool)
+	for {
+		select {
+		case v := <-dataReadyStreams[userId]:
+			if v {
+				// 当 v 为 true 时，执行操作
+				log.GetTextLogger().Info("Data is ready, proceeding...")
+				data, exists := streams[userId]
+				//if !exists || data == nil {
+				if !exists {
+					log.GetTextLogger().Error("error for get stream data,channel is empty for user " + strconv.Itoa(userId))
+					return nil, nil
+				}
+				return data.sequenceValue, data.activeChan
+			} else {
+				// 如果 v 为 false，则阻塞继续等待
+				log.GetTextLogger().Warn("Data not ready, waiting...")
+			}
+		}
+		// 阻塞1秒后继续循环检查
+		time.Sleep(time.Second)
+	}
+```
+
+这里的dataReadyStreas是一个map  通过它来记录每一个map中流是否就绪 可以获取值
+
+本意是当这里的nil通道 一旦成功获取到值 就会将这个值渲染并下发
+
+赋值的代码是 （**在另外一个goroutine中执行**）
+
+```go
+			if dataReadyStreams[identity] == nil {
+				dataReadyStreams[identity] = make(chan bool, 1)
+			}
+```
+
+整个流程即是 主goroutine试图从空channel中获取值 这个channel由另外一个goroutine赋值
+
+但是这样是**不合法的**
+
+一旦select语句中 （不只是select语句 此处泛指任何情况） 试图从nil的channel中获取数据
+
+那么就会**永久阻塞住**
+
+解决方法就可以在select语句中加default分支 或者在接受的时候 做一个判断并提前为其赋值
+
+![image-20241016152011155](C:\Users\chenz\AppData\Roaming\Typora\typora-user-images\image-20241016152011155.png)
+
+如果有default语句 并且某个channel为空 就会忽略到这个channel并不执行。
+
